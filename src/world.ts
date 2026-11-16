@@ -129,7 +129,56 @@ function makeChunk(cx: number, cz: number) {
     water.updateMatrix();
   }
 
-  return { ground, water, heights };
+  return { ground, water, heights, scenery: [] as THREE.InstancedMesh[] };
+}
+
+// Shared low-poly geometry, batched per chunk and identical for every player.
+const trunkGeometry = new THREE.CylinderGeometry(0.22, 0.35, 2.5, 5);
+const crownGeometry = new THREE.ConeGeometry(1.65, 4, 6);
+const stoneGeometry = new THREE.IcosahedronGeometry(1, 0);
+const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x705037 });
+const crownMaterial = new THREE.MeshLambertMaterial({ color: 0x44733b });
+const stoneMaterial = new THREE.MeshLambertMaterial({ color: 0x85867d });
+function makeScenery(cx: number, cz: number, height: (x: number, z: number) => number) {
+  let seed = (Math.imul(cx, 73856093) ^ Math.imul(cz, 19349663) ^ 8251) >>> 0;
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  const trees: THREE.Matrix4[] = [], crowns: THREE.Matrix4[] = [], stones: THREE.Matrix4[] = [];
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < 12; i++) {
+    const x = (cx + random()) * CHUNK_SIZE, z = (cz + random()) * CHUNK_SIZE;
+    const y = height(x, z), size = 0.75 + random() * 0.65, turn = random() * Math.PI * 2;
+    const tree = random() > 0.3;
+    const c = CITY_LIMITS;
+    if (x > c.minX - 14 && x < c.maxX + 14 && z > c.minZ - 14 && z < c.maxZ + 14) continue;
+    if (y < 3 || y > 48 || Math.abs(height(x + 2, z) - y) > 1.5 || Math.abs(height(x, z + 2) - y) > 1.5) continue;
+    dummy.rotation.set(0, turn, 0);
+    dummy.scale.setScalar(size);
+    if (tree) {
+      dummy.position.set(x, y + 1.1 * size, z); dummy.updateMatrix(); trees.push(dummy.matrix.clone());
+      dummy.position.y = y + 3.5 * size; dummy.updateMatrix(); crowns.push(dummy.matrix.clone());
+    } else {
+      dummy.scale.set(size, size * 0.65, size * 0.8);
+      dummy.position.set(x, y + size * 0.35, z); dummy.updateMatrix(); stones.push(dummy.matrix.clone());
+    }
+  }
+  const meshes: THREE.InstancedMesh[] = [];
+  for (const [matrices, geometry, material] of [[trees, trunkGeometry, trunkMaterial], [crowns, crownGeometry, crownMaterial], [stones, stoneGeometry, stoneMaterial]] as const) {
+    if (!matrices.length) continue;
+    const mesh = new THREE.InstancedMesh(geometry, material, matrices.length);
+    matrices.forEach((matrix, i) => mesh.setMatrixAt(i, matrix));
+    mesh.computeBoundingSphere();
+    meshes.push(mesh);
+  }
+  return meshes;
+}
+
+export function zoneName(x: number, z: number, height: number) {
+  const c = CITY_LIMITS;
+  if (x >= c.minX && x <= c.maxX && z >= c.minZ && z <= c.maxZ) return 'Ciudad Bloquito';
+  if (height < -0.5) return 'Mar abierto';
+  if (height < 3) return z < 0 ? 'Playa Norte' : 'Playa Sur';
+  if (height > 38) return 'Cumbres';
+  return x < 0 ? 'Colinas del Oeste' : 'Praderas del Este';
 }
 
 const chunkKey = (x: number, z: number) => x + ',' + z;
@@ -167,6 +216,7 @@ export class World {
         chunk.ground.removeFromParent();
         chunk.ground.geometry.dispose();
         chunk.water?.removeFromParent();
+        for (const mesh of chunk.scenery) { mesh.removeFromParent(); mesh.dispose(); }
         this.chunks.delete(key);
       }
 
@@ -187,6 +237,8 @@ export class World {
     if (!next) return;
     const chunk = makeChunk(next.x, next.z);
     this.chunks.set(chunkKey(next.x, next.z), chunk);
+    chunk.scenery = makeScenery(next.x, next.z, (x, z) => this.groundHeight(x, z));
+    for (const mesh of chunk.scenery) this.scene.add(mesh);
     this.scene.add(chunk.ground);
     if (chunk.water) this.scene.add(chunk.water);
   }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { World, setTerrainLight, waterSpeed } from './world';
+import { World, setTerrainLight, waterSpeed, zoneName } from './world';
 import { addCity, hitsBuilding } from './city';
 import { createCars } from './cars';
 import { createLan } from './lan';
@@ -35,6 +35,13 @@ document.body.style.overflow = 'hidden';
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.append(canvas);
 const coordinates = document.querySelector<HTMLParagraphElement>('#coordinates')!;
+
+const zone = document.createElement('p');
+zone.id = 'zone-name';
+zone.hidden = true;
+zone.setAttribute('role', 'status');
+coordinates.after(zone);
+let candidateZone = '', currentZone = '', zoneSince = 0;
 
 const controls = document.createElement('p');
 controls.id = 'keyboard-controls';
@@ -358,6 +365,13 @@ function animate(time: number) {
 
   lan.update(time, delta);
   if (!lan.entering) {
+    const nextZone = zoneName(position.x, position.z, floor);
+    if (nextZone !== candidateZone) { candidateZone = nextZone; zoneSince = time; }
+    if (nextZone !== currentZone && time - zoneSince > 1000) {
+      currentZone = nextZone;
+      zone.textContent = currentZone;
+      zone.hidden = false;
+    }
     const text = `X ${Math.round(position.x)} · Y ${Math.round(position.y)} · Z ${Math.round(position.z)}`;
     if (text !== coordinateText) {
       coordinateText = text;

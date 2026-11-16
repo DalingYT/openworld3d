@@ -10,3 +10,5 @@ Explora un mundo 3D con tus amigos desde el navegador. Elige tu apodo, ponte un 
 - **En móvil**, usa el joystick para moverte y arrastra el escenario para mirar. Toca los botones en pantalla para correr, saltar o cambiar de cámara.
 - Pulsa **Sacar carro**, acércate y usa `E` o **Subir al carro**. Maneja con `W` para acelerar, `S` para reversa y `A`/`D` para girar. En móvil, usa los dos ejes del joystick.
 - En **Tienda** puedes elegir un sombrero gratis. En el chat, prueba **¡Fiesta!** para lanzar confeti.
+
+El paisaje incluye árboles y rocas. Descubre las zonas por su nombre y abre **Jugadores** para ver quién está en la partida.

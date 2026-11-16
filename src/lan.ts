@@ -41,6 +41,27 @@ export function createLan(
     yaw: number;
   }>();
 
+  const roster = document.createElement('details');
+  roster.id = 'player-list';
+  roster.hidden = true;
+  const rosterTitle = document.createElement('summary');
+  const rosterNames = document.createElement('ul');
+  roster.append(rosterTitle, rosterNames);
+  document.querySelector('#game-status')!.append(roster);
+  roster.addEventListener('pointerdown', () => { if (document.pointerLockElement) document.exitPointerLock(); });
+  let rosterSignature = '';
+  function showRoster(states: PlayerState[]) {
+    roster.hidden = !token;
+    const names = [input.value.trim() + ' (tú)', ...states.map(state => state.name)];
+    const signature = JSON.stringify(names);
+    if (signature === rosterSignature) return;
+    rosterSignature = signature;
+    rosterTitle.textContent = 'Jugadores · ' + names.length;
+    rosterNames.replaceChildren(...names.map(name => {
+      const item = document.createElement('li'); item.textContent = name; return item;
+    }));
+  }
+
   let stream: EventSource | null = null;
   let token: string | null = null;
   let joined = false;
@@ -87,6 +108,7 @@ export function createLan(
   }
 
   function updatePlayers(states: PlayerState[]) {
+    showRoster(states);
     settings.setPlayers(states.map(({ id, name }) => ({ id, name })));
     const ids = new Set(states.map(state => state.id));
     for (const key of others.keys()) {

@@ -62,7 +62,7 @@ export function createCars(scene: THREE.Scene, world: World) {
     const pitch = Math.atan2(front - rear, 2.4);
     const roll = Math.atan2(right - left, 2);
     mesh.rotation.set(level ? 0 : pitch, yaw, level ? 0 : roll, 'YXZ');
-    return Math.abs(roll) > 0.85 || Math.abs(pitch) > 1.05;
+    return Math.abs(roll) > 1.25 || Math.abs(pitch) > 1.4;
   }
 
   const cars = new Map<string, {
@@ -73,6 +73,7 @@ export function createCars(scene: THREE.Scene, world: World) {
   let lastDriven: string | null = null;
   let verticalSpeed: number | null = null;
   let blockedTime = 0;
+  let tippedTime = 0;
   let recoveryUsed = false;
   let bumpX = 0;
   let bumpZ = 0;
@@ -180,6 +181,7 @@ export function createCars(scene: THREE.Scene, world: World) {
           bumpZ = 0;
           verticalSpeed = null;
           blockedTime = 0;
+          tippedTime = 0;
           recoveryUsed = false;
           lastDriven = null;
           const side = player.rotation.y + Math.PI / 2;
@@ -236,7 +238,8 @@ export function createCars(scene: THREE.Scene, world: World) {
       const ground = world.groundHeight(position.x, position.z);
       if (verticalSpeed === null) position.y = ground;
       const tipped = alignToTerrain(mesh, yaw, verticalSpeed !== null);
-      if (!recoveryUsed && (tipped || blockedTime >= 0.8)) {
+      tippedTime = tipped && Math.abs(speed) < 0.7 && verticalSpeed === null ? tippedTime + delta : 0;
+      if (!recoveryUsed && (tippedTime >= 1.5 || blockedTime >= 2)) {
         recoveryUsed = true;
         verticalSpeed = RECOVERY_SPEED;
         speed = 0;

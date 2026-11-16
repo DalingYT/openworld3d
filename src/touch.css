@@ -74,3 +74,9 @@
 }
 #touch-controls #touch-jump:active { background: #d7efff; }
 #touch-controls button[aria-pressed="true"] { background: #a8dbff; color: #0b1827; }
+
+#game-status #zone-name { margin-top: 4px; width: fit-content; max-width: 40vw; }
+#player-list { margin-top: 4px; width: fit-content; max-width: 40vw; background: #162739ed; border-radius: 6px; pointer-events: auto; }
+#player-list summary { padding: 10px 12px; cursor: pointer; }
+#player-list ul { margin: 0; padding: 0 12px 10px 28px; max-height: 25vh; overflow-y: auto; overflow-wrap: anywhere; }
+#player-list li { padding: 3px 0; }
