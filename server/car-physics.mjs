@@ -1,58 +1,125 @@
 import buildings from '../shared/city-buildings.json' with { type: 'json' };
 
+const motion = new WeakMap();
+
 function reach(yaw, nx, nz) {
   const sin = Math.sin(yaw);
   const cos = Math.cos(yaw);
   return Math.abs(nx * sin + nz * cos) * 2 + Math.abs(nx * cos - nz * sin) * 1.05;
 }
 
-export function carSpaceFree(cars, x, z, yaw, ignored) {
+function outsideBuildings(x, z, yaw) {
   const marginX = reach(yaw, 1, 0);
   const marginZ = reach(yaw, 0, 1);
-  if (buildings.some(block => Math.abs(x - block.x) < 4 + marginX
-      && Math.abs(z - block.z) < 6 + marginZ)) return false;
+  return !buildings.some(block => Math.abs(x - block.x) < 4 + marginX
+    && Math.abs(z - block.z) < 6 + marginZ);
+}
+
+function contact(car, other, dx, dz, yaw) {
+  let start = -Infinity;
+  let end = Infinity;
+  let nx = 0;
+  let nz = 0;
+  const ox = other.x - car.x;
+  const oz = other.z - car.z;
+
+  for (const angle of [yaw, yaw + Math.PI / 2, other.yaw, other.yaw + Math.PI / 2]) {
+    const x = Math.sin(angle);
+    const z = Math.cos(angle);
+    const distance = ox * x + oz * z;
+    const step = dx * x + dz * z;
+    const limit = reach(yaw, x, z) + reach(other.yaw, x, z);
+    if (Math.abs(step) < 1e-8) {
+      if (Math.abs(distance) >= limit) return;
+      continue;
+    }
+    const a = (distance - limit) / step;
+    const b = (distance + limit) / step;
+    const entry = Math.min(a, b);
+    if (entry > start) {
+      start = entry;
+      nx = x * Math.sign(step);
+      nz = z * Math.sign(step);
+    }
+    end = Math.min(end, Math.max(a, b));
+    if (start > end) return;
+  }
+  if (end <= 0 || start > 1 || start === -Infinity) return;
+  // If already overlapping, allow inputs that separate the cars.
+  if (start < 0 && ox * dx + oz * dz <= 0) return;
+  return { time: Math.max(0, start), nx, nz };
+}
+
+function overlap(x, z, yaw, other) {
+  const dx = other.x - x;
+  const dz = other.z - z;
+  return [yaw, yaw + Math.PI / 2, other.yaw, other.yaw + Math.PI / 2].every(angle => {
+    const nx = Math.sin(angle);
+    const nz = Math.cos(angle);
+    return Math.abs(dx * nx + dz * nz) < reach(yaw, nx, nz) + reach(other.yaw, nx, nz);
+  });
+}
+
+export function carSpaceFree(cars, x, z, yaw, ignored) {
+  if (!outsideBuildings(x, z, yaw)) return false;
   for (const car of cars.values()) {
-    if (car === ignored) continue;
-    const dx = x - car.x;
-    const dz = z - car.z;
-    const distance = Math.hypot(dx, dz);
-    if (!distance || distance < reach(yaw, dx / distance, dz / distance)
-        + reach(car.yaw, dx / distance, dz / distance)) return false;
+    if (car !== ignored && overlap(x, z, yaw, car)) return false;
   }
   return true;
 }
 
-function bump(car, vx, vz) {
-  car.vx = vx;
-  car.vz = vz;
-  car.impact++;
+function updateMotion(car, vx, vz, now) {
+  motion.set(car, { vx, vz, at: now });
 }
 
-// Proposals come from the current driver. The room resolves shared-vehicle contacts.
-export function moveCar(cars, car, { x, y, z, yaw }) {
+function velocityOf(car, now) {
+  if (!car.driver) return { vx: car.vx, vz: car.vz };
+  const sample = motion.get(car);
+  if (sample && now - sample.at < 300) return sample;
+  return { vx: 0, vz: 0 };
+}
+
+// Stop at the first point of contact, then exchange momentum along its normal.
+export function moveCar(cars, car, { x, y, z, yaw }, now = performance.now(), stepSeconds) {
   const dx = x - car.x;
   const dz = z - car.z;
-  const squaredStep = dx * dx + dz * dz;
+  const elapsed = (now - (motion.get(car)?.at ?? now - 80)) / 1000;
+  const dt = stepSeconds ?? Math.max(0.055, Math.min(0.25, elapsed));
+  const scale = Math.min(1 / dt, 30 / (Math.hypot(dx, dz) || 1));
+  const vx = dx * scale;
+  const vz = dz * scale;
+  let hit;
   for (const other of cars.values()) {
-    if (car === other || !squaredStep) continue;
-    const ox = other.x - car.x;
-    const oz = other.z - car.z;
-    const toward = ox * dx + oz * dz;
-    if (toward <= 0) continue;
-    const t = Math.min(toward / squaredStep, 1);
-
-    const gap = Math.hypot(ox, oz);
-    const step = Math.sqrt(squaredStep);
-    const nx = gap ? ox / gap : dx / step;
-    const nz = gap ? oz / gap : dz / step;
-    if (Math.hypot(ox - dx * t, oz - dz * t) >= reach(yaw, nx, nz) + reach(other.yaw, nx, nz)) continue;
-    const force = Math.min(11, Math.max(1.2, (nx * dx + nz * dz) * 8));
-    bump(other, nx * force, nz * force);
-    bump(car, -nx * force * 0.42, -nz * force * 0.42);
-    car.yaw = yaw;
+    if (car === other) continue;
+    if (car.y !== undefined && other.y !== undefined && Math.abs(car.y - other.y) > 1.45) continue;
+    const result = contact(car, other, dx, dz, yaw);
+    if (result && (!hit || result.time < hit.time)) hit = { ...result, other };
+  }
+  if (!hit) {
+    Object.assign(car, { x, y, z, yaw });
+    updateMotion(car, vx, vz, now);
     return;
   }
-  Object.assign(car, { x, y, z, yaw });
+
+  const { nx, nz, time, other } = hit;
+  const target = velocityOf(other, now);
+  const closingSpeed = (vx - target.vx) * nx + (vz - target.vz) * nz;
+  const impulse = Math.max(0, closingSpeed) * 0.52;
+  const backoff = Math.max(0, time - 0.004 / (Math.hypot(dx, dz) || 1));
+  car.x += dx * backoff;
+  car.z += dz * backoff;
+  car.y = y;
+  car.yaw = yaw;
+  car.vx = vx - impulse * nx;
+  car.vz = vz - impulse * nz;
+  car.impact++;
+  updateMotion(car, car.vx, car.vz, now);
+  if (impulse > 0) {
+    other.vx = target.vx + impulse * nx;
+    other.vz = target.vz + impulse * nz;
+    other.impact++;
+    updateMotion(other, other.vx, other.vz, now);
+  }
 }
 
 export function coastParkedCars(cars, dt) {
@@ -61,12 +128,12 @@ export function coastParkedCars(cars, dt) {
     if (car.driver || Math.hypot(car.vx, car.vz) < 0.08) continue;
     const x = car.x + car.vx * dt;
     const z = car.z + car.vz * dt;
-    if (carSpaceFree(cars, x, z, car.yaw, car)) {
-      car.x = x;
-      car.z = z;
-      car.vx *= 0.77;
-      car.vz *= 0.77;
+    if (outsideBuildings(x, z, car.yaw)) {
       delete car.y;
+      moveCar(cars, car, { x, z, yaw: car.yaw }, performance.now(), dt);
+      const damping = Math.exp(-dt * 2.5);
+      car.vx *= damping;
+      car.vz *= damping;
       moved = true;
     } else {
       car.vx = 0;

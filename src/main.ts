@@ -280,7 +280,7 @@ function animate(time: number) {
   const sinYaw = Math.sin(yaw);
   const cosYaw = Math.cos(yaw);
   direction.set(cosYaw * moveX - sinYaw * moveZ, 0, -sinYaw * moveX - cosYaw * moveZ);
-  const carYaw = cars.update(player, lan.settingsOpen ? 0 : direction.x, lan.settingsOpen ? 0 : direction.z, delta);
+  const carYaw = cars.update(player, lan.settingsOpen ? 0 : moveX, lan.settingsOpen ? 0 : moveZ, delta);
   const driving = carYaw !== null;
   if (driving) {
     verticalVelocity = 0;

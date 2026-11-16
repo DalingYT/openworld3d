@@ -43,6 +43,7 @@ function makeCar(color: number) {
     for (const axle of [-1.2, 1.2]) {
       const tire = new THREE.Mesh(wheel, rubber);
       tire.position.set(side * 1.03, 0.41, axle);
+      if (axle < 0) tire.name = 'front-wheel';
       car.add(tire);
     }
   }
@@ -126,9 +127,11 @@ export function createCars(scene: THREE.Scene, world: World) {
         if (tookWheel || hit) {
           car.mesh.position.set(state.x, world.groundHeight(state.x, state.z), state.z);
           alignToTerrain(car.mesh, state.yaw);
-          speed = 0;
-          bumpX = hit ? state.vx : 0;
-          bumpZ = hit ? state.vz : 0;
+          const forwardX = -Math.sin(state.yaw);
+          const forwardZ = -Math.cos(state.yaw);
+          speed = hit ? state.vx * forwardX + state.vz * forwardZ : 0;
+          bumpX = hit ? state.vx - forwardX * speed : 0;
+          bumpZ = hit ? state.vz - forwardZ * speed : 0;
         }
         car.state = state;
         car.targetLift = state.y === undefined ? 0
@@ -148,7 +151,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
       return closest;
     },
-    update(player: THREE.Group, moveX: number, moveZ: number, delta: number) {
+    update(player: THREE.Group, steering: number, throttle: number, delta: number) {
       const own = driven();
       const mix = 1 - Math.exp(-delta * 13);
       for (const car of cars.values()) {
@@ -195,19 +198,25 @@ export function createCars(scene: THREE.Scene, world: World) {
       const { mesh, state } = own;
       lastDriven = state.id;
       const { position, rotation } = mesh;
-      const input = Math.min(1, Math.hypot(moveX, moveZ));
-      const direction = input ? Math.atan2(-moveX, -moveZ) - rotation.y : 0;
-      const angle = Math.atan2(Math.sin(direction), Math.cos(direction));
-      const turn = THREE.MathUtils.clamp(angle, -5.5 * delta, 5.5 * delta);
-      const yaw = rotation.y + turn;
+      const pedal = THREE.MathUtils.clamp(throttle, -1, 1);
+      const steer = THREE.MathUtils.clamp(steering, -1, 1);
+      const travel = Math.sign(Math.abs(speed) > 0.1 ? speed : pedal);
+      const steeringGrip = THREE.MathUtils.smoothstep(Math.abs(speed), 0.12, 3.5)
+        * THREE.MathUtils.lerp(2.35, 1.3, Math.min(1, Math.abs(speed) / 24));
+      const yaw = rotation.y - steer * travel * steeringGrip * delta;
       const floor = world.groundHeight(position.x, position.z);
-      const ahead = world.groundHeight(position.x - Math.sin(yaw) * 2, position.z - Math.cos(yaw) * 2);
+      const ahead = world.groundHeight(position.x - Math.sin(yaw) * travel * 2,
+        position.z - Math.cos(yaw) * travel * 2);
       const grade = Math.abs(ahead - floor) * 0.5;
       const traction = 1 - 0.5 * THREE.MathUtils.smoothstep(grade, 0.45, 1.35);
-      const alignment = Math.max(0, Math.cos(angle - turn));
-      const goal = 24 * input * waterSpeed(floor, 0.28) * traction * alignment;
+      const goal = (pedal < 0 ? 9 : 24) * pedal * waterSpeed(floor, 0.28) * traction;
       speed = verticalSpeed === null ? THREE.MathUtils.lerp(speed, goal, 1 - Math.exp(-delta * 4.8)) : 0;
-      if (Math.abs(angle) > Math.PI / 2) speed = Math.min(speed, 1);
+      if (!pedal && Math.abs(speed) < 0.03) speed = 0;
+      for (const part of mesh.children) {
+        if (part.name === 'front-wheel') {
+          part.rotation.y = THREE.MathUtils.lerp(part.rotation.y, -steer * 0.4, 1 - Math.exp(-delta * 14));
+        }
+      }
       const x = position.x + (bumpX - Math.sin(yaw) * speed) * delta;
       const z = position.z + (bumpZ - Math.cos(yaw) * speed) * delta;
       const collision = (x !== position.x || z !== position.z) && blocked(x, z, yaw);
@@ -215,7 +224,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         speed = 0;
         bumpX = 0;
         bumpZ = 0;
-        blockedTime = input ? blockedTime + delta : 0;
+        blockedTime = pedal ? blockedTime + delta : 0;
       } else {
         position.x = x;
         position.z = z;
