@@ -1,3 +1,4 @@
+import { sfx } from './audio';
 import * as THREE from 'three';
 import type { World } from './world';
 import './arcade.css';
@@ -35,6 +36,7 @@ export function createArcade(scene: THREE.Scene, world: World) {
     cells.forEach((cell, i) => { cell.textContent = i === active ? '■' : ''; cell.setAttribute('aria-label', i === active ? 'Atrapar Bloquito' : 'Casilla vacía'); });
   }
   function finish() {
+    if (end && performance.now() >= end) sfx('finish');
     end = 0; active = -1; start.disabled = false;
     cells.forEach(cell => { cell.disabled = true; cell.textContent = ''; });
     best = Math.max(best, score);
@@ -46,7 +48,7 @@ export function createArcade(scene: THREE.Scene, world: World) {
     cell.addEventListener('click', () => {
       if (!end) return;
       if (performance.now() >= end) { finish(); return; }
-      if (i === active) { score++; next(); }
+      if (i === active) { score++; sfx('point'); next(); }
     });
     cells.push(cell); grid.append(cell);
   }

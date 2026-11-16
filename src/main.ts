@@ -1,3 +1,4 @@
+import { setupAudio, updateAudio, sfx } from './audio';
 import * as THREE from 'three';
 import { World, setTerrainLight, waterSpeed, zoneName } from './world';
 import { addCity, hitsBuilding } from './city';
@@ -7,6 +8,7 @@ import { createLan } from './lan';
 import { setupTouch } from './touch';
 import './touch.css';
 
+setupAudio();
 const scene = new THREE.Scene();
 const sky = new THREE.Color(0xa7cde3);
 const daySky = sky.clone();
@@ -263,6 +265,7 @@ const target = new THREE.Vector3();
 const step = new THREE.Vector3();
 let previousTime = performance.now();
 let cameraFraction = 1;
+let footstepDistance = 0;
 let coordinateText = '';
 const DAY_LENGTH = 8 * 60 * 1000;
 
@@ -286,6 +289,7 @@ function animate(time: number) {
 
   arcade.update(player.position, !lan.entering && !cars.driving && !lan.settingsOpen, time);
   if (lan.settingsOpen || arcade.open) { keys.clear(); jumpQueued = false; }
+  const previousX = player.position.x, previousZ = player.position.z;
   const moveX = Number(keys.has('KeyD')) - Number(keys.has('KeyA')) + ((lan.settingsOpen || arcade.open) ? 0 : touch.x);
   const moveZ = Number(keys.has('KeyW')) - Number(keys.has('KeyS')) + ((lan.settingsOpen || arcade.open) ? 0 : touch.y);
   const sinYaw = Math.sin(yaw);
@@ -327,6 +331,7 @@ function animate(time: number) {
     position.y = Math.max(position.y, floor);
     verticalVelocity = JUMP_FORCE;
     grounded = false;
+    sfx('jump');
   }
   jumpQueued = false;
 
@@ -336,7 +341,9 @@ function animate(time: number) {
   } else if (!driving) {
     verticalVelocity += GRAVITY * delta;
     position.y += verticalVelocity * delta;
+    const landed = !grounded && position.y <= floor && verticalVelocity < -2;
     grounded = position.y <= floor;
+    if (landed) sfx(floor < 0 ? 'splash' : 'land');
     if (grounded) {
       position.y = floor;
       verticalVelocity = 0;
@@ -384,6 +391,12 @@ function animate(time: number) {
       coordinates.hidden = false;
     }
   }
+  const moved = Math.hypot(position.x - previousX, position.z - previousZ);
+  if (!driving && grounded && !lan.entering) {
+    footstepDistance += moved;
+    if (footstepDistance > 1.7) { footstepDistance = 0; sfx(floor < 0 ? 'splash' : 'step'); }
+  } else footstepDistance = 0;
+  updateAudio(!lan.entering, driving, delta > 0 ? moved / delta : 0);
   updateDaylight(time);
   renderer.render(scene, camera);
 }

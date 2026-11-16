@@ -1,3 +1,4 @@
+import { sfx } from './audio';
 import * as THREE from 'three';
 import phrases from '../shared/phrases.json';
 import './chat.css';
@@ -88,6 +89,7 @@ export function createChat(scene: THREE.Scene, send: (phrase: string) => Promise
       toggle.textContent = panel.open ? 'Chat' : name + ' · ' + phrases[phrase as keyof typeof phrases];
       if (phrase === 'party' && position) celebrate(position);
       if (phrase.startsWith('emoji') && position) {
+        sfx('reaction');
         removeReaction(position);
         const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
         const ctx = canvas.getContext('2d')!;

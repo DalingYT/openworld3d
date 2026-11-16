@@ -1,3 +1,4 @@
+import { sfx } from './audio';
 import * as THREE from 'three';
 import { hitsBuilding } from './city';
 import { World, waterSpeed } from './world';
@@ -103,7 +104,7 @@ export function createCars(scene: THREE.Scene, world: World) {
 
   return {
     jump() {
-      if (driven() && verticalSpeed === null) verticalSpeed = RECOVERY_SPEED;
+      if (driven() && verticalSpeed === null) { verticalSpeed = RECOVERY_SPEED; sfx('jump'); }
     },
     get driving() { return Boolean(driven()); },
     get drivingId() { return driven()?.state.id ?? null; },
@@ -143,6 +144,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         }
         const tookWheel = state.driver === driverId && car.state.driver !== driverId;
         const hit = state.driver === driverId && car.state.impact !== state.impact;
+        if (hit) sfx('crash');
         if (tookWheel || hit) {
           car.mesh.position.set(state.x, state.y ?? world.groundHeight(state.x, state.z), state.z);
           alignToTerrain(car.mesh, state.yaw);
@@ -265,6 +267,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       const z = position.z + (bumpZ - Math.cos(yaw) * speed) * delta;
       const collision = (x !== position.x || z !== position.z) && blocked(x, z, yaw);
       if (collision) {
+        if (Math.abs(speed) > 2) sfx('crash');
         speed = 0;
         bumpX = 0;
         bumpZ = 0;
@@ -295,6 +298,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         position.y += verticalSpeed * delta - 0.5 * RECOVERY_GRAVITY * delta * delta;
         verticalSpeed -= RECOVERY_GRAVITY * delta;
         if (position.y <= ground && verticalSpeed <= 0) {
+          sfx(ground < 0 ? 'splash' : 'land');
           position.y = ground;
           verticalSpeed = null;
           groundVelocity = 0;

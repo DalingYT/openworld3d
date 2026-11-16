@@ -16,3 +16,6 @@ El paisaje incluye árboles y rocas. Descubre las zonas por su nombre y abre **J
 En **Tienda** también puedes cambiar el color de tu personaje. Usa **Espacio** o **Saltar** para saltar con el carro. Abre el chat para enviar reacciones sobre tu personaje. Cerca del punto de aparición encontrarás una máquina **Arcade** con un juego de reflejos y récord guardado en tu dispositivo.
 
 Los carros tienen aceleración progresiva, inercia y derrape en curvas rápidas. Pulsa la dirección opuesta para frenar antes de ir en reversa. Conservan el impulso al saltar y caen al salir de un borde.
+
+En **Configuración → Audio** puedes ajustar la música y los efectos por separado o silenciar el juego. El audio empieza tras tocar o hacer clic y se pausa cuando ocultas la pestaña.
+
