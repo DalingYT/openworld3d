@@ -3,7 +3,10 @@ import models from '../shared/cars.json';
 import { hitsBuilding } from './city';
 import { World, waterSpeed } from './world';
 
-export type CarState = { id: string; x: number; z: number; yaw: number; driver: string | null };
+export type CarState = { id: string; x: number; y?: number; z: number; yaw: number; driver: string | null };
+
+const RECOVERY_GRAVITY = 18;
+const RECOVERY_SPEED = 9;
 
 const box = new THREE.BoxGeometry(1, 1, 1);
 const wheel = new THREE.CylinderGeometry(0.42, 0.42, 0.34, 8);
@@ -38,16 +41,34 @@ function makeCar(color: number) {
 }
 
 export function createCars(scene: THREE.Scene, world: World) {
+  function alignToTerrain(mesh: THREE.Group, yaw: number, level = false) {
+    const { x, z } = mesh.position;
+    const sin = Math.sin(yaw);
+    const cos = Math.cos(yaw);
+    const front = world.groundHeight(x - sin * 1.2, z - cos * 1.2);
+    const rear = world.groundHeight(x + sin * 1.2, z + cos * 1.2);
+    const right = world.groundHeight(x + cos, z - sin);
+    const left = world.groundHeight(x - cos, z + sin);
+    const pitch = Math.atan2(front - rear, 2.4);
+    const roll = Math.atan2(right - left, 2);
+    mesh.rotation.set(level ? 0 : pitch, yaw, level ? 0 : roll, 'YXZ');
+    return Math.abs(roll) > 0.85 || Math.abs(pitch) > 1.05;
+  }
+
   const cars = new Map(models.map(model => {
     const mesh = makeCar(model.color);
-    mesh.position.set(model.x, world.groundHeight(model.x, model.z), model.z);
-    mesh.rotation.y = model.yaw;
+    const y = world.groundHeight(model.x, model.z);
+    mesh.position.set(model.x, y, model.z);
+    alignToTerrain(mesh, model.yaw);
     scene.add(mesh);
-    return [model.id, { mesh, state: { ...model, driver: null } as CarState }];
+    return [model.id, { mesh, state: { ...model, driver: null } as CarState, lift: 0, targetLift: 0 }];
   }));
   let driverId = '';
   let speed = 0;
   let lastDriven: string | null = null;
+  let verticalSpeed: number | null = null;
+  let blockedTime = 0;
+  let recoveryUsed = false;
 
   function driven() {
     if (!driverId) return;
@@ -76,9 +97,11 @@ export function createCars(scene: THREE.Scene, world: World) {
         if (!car) continue;
         if (state.driver === driverId && car.state.driver !== driverId) {
           car.mesh.position.set(state.x, world.groundHeight(state.x, state.z), state.z);
-          car.mesh.rotation.y = state.yaw;
+          alignToTerrain(car.mesh, state.yaw);
         }
         car.state = state;
+        car.targetLift = state.y === undefined ? 0
+          : THREE.MathUtils.clamp(state.y - world.groundHeight(state.x, state.z), 0, 2.3);
       }
     },
     nearby(position: THREE.Vector3) {
@@ -94,26 +117,33 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
       return closest;
     },
-    update(player: THREE.Group, throttle: number, steer: number, delta: number) {
+    update(player: THREE.Group, moveX: number, moveZ: number, delta: number) {
       const own = driven();
       const mix = 1 - Math.exp(-delta * 13);
       for (const car of cars.values()) {
         if (car === own) continue;
         const { state, mesh } = car;
-        if (mesh.position.x !== state.x || mesh.position.z !== state.z) {
-          mesh.position.x = Math.abs(mesh.position.x - state.x) < 0.01 ? state.x
-            : THREE.MathUtils.lerp(mesh.position.x, state.x, mix);
-          mesh.position.z = Math.abs(mesh.position.z - state.z) < 0.01 ? state.z
-            : THREE.MathUtils.lerp(mesh.position.z, state.z, mix);
-          mesh.position.y = world.groundHeight(mesh.position.x, mesh.position.z);
-        }
+        if (mesh.position.x === state.x && mesh.position.z === state.z &&
+            car.lift === car.targetLift && mesh.rotation.y === state.yaw) continue;
+        const approach = (from: number, to: number) =>
+          Math.abs(from - to) < 0.01 ? to : THREE.MathUtils.lerp(from, to, mix);
+        mesh.position.x = approach(mesh.position.x, state.x);
+        mesh.position.z = approach(mesh.position.z, state.z);
+        const floor = world.groundHeight(mesh.position.x, mesh.position.z);
+        car.lift = approach(car.lift, car.targetLift);
+        mesh.position.y = floor + car.lift;
         const angle = state.yaw - mesh.rotation.y;
-        mesh.rotation.y += Math.atan2(Math.sin(angle), Math.cos(angle)) * mix;
+        const shortest = Math.atan2(Math.sin(angle), Math.cos(angle));
+        const yaw = Math.abs(shortest) < 0.01 ? state.yaw : mesh.rotation.y + shortest * mix;
+        alignToTerrain(mesh, yaw, car.lift > 0.2);
       }
 
       if (!own) {
         if (lastDriven) {
           speed = 0;
+          verticalSpeed = null;
+          blockedTime = 0;
+          recoveryUsed = false;
           lastDriven = null;
           const side = player.rotation.y + Math.PI / 2;
           for (const sign of [1, -1]) {
@@ -131,19 +161,48 @@ export function createCars(scene: THREE.Scene, world: World) {
       const { mesh, state } = own;
       lastDriven = state.id;
       const { position, rotation } = mesh;
-      const water = waterSpeed(position.y, 0.28);
-      const goal = THREE.MathUtils.clamp(throttle, -1, 1) * (throttle < 0 ? 8 : 24) * water;
-      const turning = 1.9 * Math.min(1, Math.abs(speed) / 4);
-      const yaw = rotation.y - THREE.MathUtils.clamp(steer, -1, 1) * turning * Math.sign(speed) * delta;
-      speed = THREE.MathUtils.lerp(speed, goal, 1 - Math.exp(-delta * 4.8));
+      const input = Math.min(1, Math.hypot(moveX, moveZ));
+      const direction = input ? Math.atan2(-moveX, -moveZ) - rotation.y : 0;
+      const angle = Math.atan2(Math.sin(direction), Math.cos(direction));
+      const turn = THREE.MathUtils.clamp(angle, -5.5 * delta, 5.5 * delta);
+      const yaw = rotation.y + turn;
+      const floor = world.groundHeight(position.x, position.z);
+      const ahead = world.groundHeight(position.x - Math.sin(yaw) * 2, position.z - Math.cos(yaw) * 2);
+      const grade = Math.abs(ahead - floor) * 0.5;
+      const traction = 1 - 0.5 * THREE.MathUtils.smoothstep(grade, 0.45, 1.35);
+      const alignment = Math.max(0, Math.cos(angle - turn));
+      const goal = 24 * input * waterSpeed(floor, 0.28) * traction * alignment;
+      speed = verticalSpeed === null ? THREE.MathUtils.lerp(speed, goal, 1 - Math.exp(-delta * 4.8)) : 0;
+      if (Math.abs(angle) > Math.PI / 2) speed = Math.min(speed, 1);
       const x = position.x - Math.sin(yaw) * speed * delta;
       const z = position.z - Math.cos(yaw) * speed * delta;
-      const floor = world.groundHeight(x, z);
-      if (!blocked(x, z, yaw, state.id) && Math.abs(floor - position.y) <= 0.4 + Math.abs(speed) * delta * 0.9) {
-        position.set(x, floor, z);
-        rotation.y = yaw;
-      } else {
+      const collision = speed > 0.05 && blocked(x, z, yaw, state.id);
+      if (collision) {
         speed = 0;
+        blockedTime = input ? blockedTime + delta : 0;
+      } else {
+        position.x = x;
+        position.z = z;
+        blockedTime = 0;
+      }
+      const ground = world.groundHeight(position.x, position.z);
+      if (verticalSpeed === null) position.y = ground;
+      const tipped = alignToTerrain(mesh, yaw, verticalSpeed !== null);
+      if (!recoveryUsed && (tipped || blockedTime >= 0.8)) {
+        recoveryUsed = true;
+        verticalSpeed = RECOVERY_SPEED;
+        speed = 0;
+      }
+      if (verticalSpeed !== null) {
+        position.y += verticalSpeed * delta - 0.5 * RECOVERY_GRAVITY * delta * delta;
+        verticalSpeed -= RECOVERY_GRAVITY * delta;
+        if (position.y <= ground && verticalSpeed <= 0) {
+          position.y = ground;
+          verticalSpeed = null;
+        }
+        alignToTerrain(mesh, yaw, verticalSpeed !== null);
+      } else if (!collision && !tipped) {
+        recoveryUsed = false;
       }
       player.position.copy(position);
       player.rotation.y = rotation.y;

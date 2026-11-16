@@ -65,7 +65,9 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
 
   function leaveCar(player) {
     if (!player.car) return;
-    cars.get(player.car).driver = null;
+    const car = cars.get(player.car);
+    car.driver = null;
+    delete car.y;
     player.car = null;
     carsDirty = true;
     dirty = true;
@@ -188,6 +190,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     if (player.car) {
       const car = cars.get(player.car);
       car.x = x;
+      car.y = y;
       car.z = z;
       car.yaw = yaw;
       carsDirty = true;

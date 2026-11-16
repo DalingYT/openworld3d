@@ -265,10 +265,12 @@ function animate(time: number) {
 
   const moveX = Number(keys.has('KeyD')) - Number(keys.has('KeyA')) + touch.x;
   const moveZ = Number(keys.has('KeyW')) - Number(keys.has('KeyS')) + touch.y;
-  const carYaw = cars.update(player, lan.settingsOpen ? 0 : moveZ, lan.settingsOpen ? 0 : moveX, delta);
+  const sinYaw = Math.sin(yaw);
+  const cosYaw = Math.cos(yaw);
+  direction.set(cosYaw * moveX - sinYaw * moveZ, 0, -sinYaw * moveX - cosYaw * moveZ);
+  const carYaw = cars.update(player, lan.settingsOpen ? 0 : direction.x, lan.settingsOpen ? 0 : direction.z, delta);
   const driving = carYaw !== null;
   if (driving) {
-    yaw = carYaw;
     verticalVelocity = 0;
     grounded = true;
   }
@@ -277,10 +279,6 @@ function animate(time: number) {
   carAction.hidden = !showCarAction;
   const actionText = driving ? 'Bajar del carro' : 'Subir al carro';
   if (carActionText.textContent !== actionText) carActionText.textContent = actionText;
-  const sinYaw = Math.sin(yaw);
-  const cosYaw = Math.cos(yaw);
-  direction.set(cosYaw * moveX - sinYaw * moveZ, 0, -sinYaw * moveX - cosYaw * moveZ);
-
   const { position } = player;
   if (!driving && direction.lengthSq() > 0) {
     direction.clampLength(0, 1);
