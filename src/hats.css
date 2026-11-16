@@ -1,0 +1,69 @@
+#hat-shop {
+  box-sizing: border-box;
+  width: min(370px, calc(100vw - 28px));
+  max-height: calc(100dvh - 28px);
+  padding: 18px;
+  border: 1px solid #496077;
+  border-radius: 12px;
+  background: #162739;
+  color: white;
+  font: 15px/1.4 system-ui, sans-serif;
+}
+#hat-shop::backdrop { background: #0b1827a8; }
+#hat-shop header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#hat-shop h2 { margin: 0; font-size: 18px; }
+#hat-shop p { margin: 8px 0 12px; }
+#hat-shop button {
+  min-height: 42px;
+  padding: 7px 9px;
+  border: 1px solid #5d758a;
+  border-radius: 7px;
+  color: white;
+  background: #273f56;
+  font: inherit;
+  cursor: pointer;
+}
+#hat-catalog { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+#hat-catalog button { display: grid; place-items: center; gap: 4px; }
+#hat-catalog button[aria-pressed="true"] { border-color: #c5e7ff; background: #42658a; }
+.hat-icon {
+  position: relative;
+  width: 25px;
+  height: 18px;
+  margin: 5px 0 4px;
+  border-radius: 2px 2px 1px 1px;
+  background: var(--hat-color, #333a4d);
+}
+.hat-icon::after {
+  content: '';
+  position: absolute;
+  left: -5px;
+  right: -5px;
+  bottom: 0;
+  height: 5px;
+  border-radius: 2px;
+  background: var(--brim-color, #444d63);
+}
+.hat-icon[data-shape="none"] { background: none; border: 1px dashed #849bb0; }
+.hat-icon[data-shape="none"]::after { display: none; }
+.hat-icon[data-shape="cap"] { --hat-color: #db4d56; --brim-color: #a8333d; }
+.hat-icon[data-shape="cap"]::after { left: 6px; }
+.hat-icon[data-shape="cowboy"] { --hat-color: #d5ae77; --brim-color: #ac744f; }
+.hat-icon[data-shape="beanie"] {
+  --hat-color: #ac7ade;
+  --brim-color: #7951ab;
+  border-radius: 13px 13px 2px 2px;
+}
+.hat-icon[data-shape="beanie"]::after { left: 0; right: 0; }
+.hat-icon[data-shape="top"] { width: 18px; --hat-color: #252435; --brim-color: #b33e5c; }
+
+@media (max-width: 420px) {
+  #game-tools {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: min(240px, calc(100vw - 140px));
+  }
+  body:has(#game-admin:not([hidden])) #game-chat {
+    top: max(93px, calc(env(safe-area-inset-top) + 81px));
+  }
+}

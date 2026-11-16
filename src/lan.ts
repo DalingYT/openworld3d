@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createChat } from './chat';
 import { createSettings } from './settings';
+import { createHatShop, equipHat } from './hats';
 import type { CarState, Cars } from './cars';
 
 const serverUrl = (import.meta.env.VITE_MULTIPLAYER_URL ?? '').replace(/\/+$/, '');
@@ -14,6 +15,7 @@ type PlayerState = {
   z: number;
   yaw: number;
   car?: string | null;
+  hat?: string | null;
 };
 
 function makeNameTag(name: string) {
@@ -74,6 +76,7 @@ export function createLan(
   let sending = false;
   let playerId = '';
   let carsAvailable = false;
+  const shop = createHatShop(player);
   let clockStart = performance.now();
   const settings = createSettings(async data => {
     if (!token) return 404;
@@ -142,6 +145,8 @@ export function createLan(
       }
       other.target.set(state.x, state.y, state.z);
       other.yaw = state.yaw;
+      equipHat(other.avatar, state.hat);
+      other.label.position.y = state.hat ? 3.02 : 2.45;
       other.avatar.visible = !state.car;
     }
   }
@@ -168,6 +173,7 @@ export function createLan(
         worldTime?: number; moderation?: boolean; cars?: boolean;
       };
       token = ready.token;
+      shop.setConnected(true);
       settings.setConnected(true, ready.moderation);
       playerId = ready.id;
       carsAvailable = ready.cars === true;
@@ -196,6 +202,7 @@ export function createLan(
       connection.close();
       stream = null;
       token = null;
+      shop.setConnected(false);
       carsAvailable = false;
       cars.setDriver('');
       joined = false;
@@ -214,6 +221,7 @@ export function createLan(
     });
     connection.addEventListener('error', () => {
       token = null;
+      shop.setConnected(false);
       carsAvailable = false;
       cars.setDriver('');
       settings.setConnected(false);
@@ -239,7 +247,7 @@ export function createLan(
 
   return {
     get entering() { return dialog.open; },
-    get settingsOpen() { return settings.open; },
+    get settingsOpen() { return settings.open || shop.open; },
     get carsAvailable() { return carsAvailable; },
     async ride(ride: string) {
       if (!token || !carsAvailable) return false;
@@ -268,7 +276,9 @@ export function createLan(
       if (!token || sending || time < nextSend) return;
       nextSend = time + 80;
       const { x, y, z } = player.position;
-      const body = JSON.stringify({ token, x, y, z, yaw: player.rotation.y, drivingCar: cars.drivingId });
+      const body = JSON.stringify({
+        token, x, y, z, yaw: player.rotation.y, drivingCar: cars.drivingId, hat: shop.selected
+      });
       if (body === lastSent) return;
       sending = true;
       void fetch(serverUrl + '/lan/move', {

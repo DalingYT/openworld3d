@@ -90,9 +90,18 @@
       <p id="lan-status" role="status" hidden></p>
     </div>
     <div id="game-tools">
+      <button id="game-shop" type="button" aria-haspopup="dialog" hidden>Tienda</button>
       <button id="game-settings" type="button" aria-haspopup="dialog" hidden>Configuración</button>
       <button id="game-admin" type="button" aria-haspopup="dialog" hidden>Administrador</button>
     </div>
+    <dialog id="hat-shop" aria-labelledby="shop-title">
+      <header>
+        <h2 id="shop-title">Tienda de sombreros</h2>
+        <button id="shop-close" type="button" autofocus>Cerrar</button>
+      </header>
+      <p>Elige un sombrero gratis para tu Bloquito.</p>
+      <div id="hat-catalog"></div>
+    </dialog>
     <dialog id="settings-panel" aria-labelledby="settings-title">
       <header>
         <h2 id="settings-title">Configuración</h2>

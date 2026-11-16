@@ -1,6 +1,7 @@
 import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import phrases from '../shared/phrases.json' with { type: 'json' };
 import carModels from '../shared/cars.json' with { type: 'json' };
+import hats from '../shared/hats.json' with { type: 'json' };
 
 const colors = [
   0x3366ff, 0xf04b54, 0x13b8b2, 0xf5ad28, 0xa45bec, 0xf065ae,
@@ -33,7 +34,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     const ping = Date.now() - lastPing >= 10_000;
     if (dirty) {
       const snapshot = [...players.values()].filter(player => player.state).map(
-        ({ id, name, color, state, car }) => ({ id, name, color, ...state, car })
+        ({ id, name, color, state, car, hat }) => ({ id, name, color, ...state, car, hat })
       );
       for (const player of players.values()) {
         send(player.response, 'players', snapshot.filter(other => other.id !== player.id));
@@ -101,7 +102,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     const usedColors = new Set([...players.values()].map(player => player.color));
     const freeColors = colors.filter(color => !usedColors.has(color));
     const color = freeColors[randomInt(freeColors.length)];
-    players.set(token, { id, name, color, response, slot, state: null, car: null });
+    players.set(token, { id, name, color, response, slot, state: null, car: null, hat: null });
     response.on('close', () => disconnect(token, slot));
 
     response.writeHead(200, {
@@ -148,7 +149,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     };
   }
 
-  const move = withPlayer((player, { x, y, z, yaw, phrase, ride, drivingCar }, response) => {
+  const move = withPlayer((player, { x, y, z, yaw, phrase, ride, drivingCar, hat }, response) => {
     if (ride === 'exit') {
       leaveCar(player);
       return response.writeHead(204).end();
@@ -186,6 +187,13 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       return;
     }
     if (player.car !== (drivingCar ?? null)) return response.writeHead(409).end();
+    if (hat !== undefined && hat !== null && (typeof hat !== 'string' || !Object.hasOwn(hats, hat))) {
+      return response.writeHead(400).end();
+    }
+    if (hat !== undefined && hat !== player.hat) {
+      player.hat = hat;
+      dirty = true;
+    }
 
     if (player.car) {
       const car = cars.get(player.car);
