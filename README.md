@@ -19,3 +19,4 @@ Los carros tienen aceleración progresiva, inercia y derrape en curvas rápidas.
 
 En **Configuración → Audio** puedes ajustar la música y los efectos por separado o silenciar el juego. El audio empieza tras tocar o hacer clic y se pausa cuando ocultas la pestaña.
 
+En **Configuración** puedes desactivar las texturas. Al conectar un mando, pulsa un botón para que el navegador lo detecte y elige **Xbox**, **Nintendo**, **PlayStation** o **Genérico**. El stick izquierdo mueve, el derecho gira la cámara y el menú muestra los botones correspondientes. Los controles requieren que el navegador reconozca el mapa estándar del mando.

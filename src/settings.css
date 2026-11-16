@@ -65,3 +65,10 @@ body #game-chat {
 #settings-panel { max-height: calc(100dvh - 28px); overflow-y: auto; }
 #settings-panel input[type="range"] { display: block; width: 100%; min-height: 32px; margin: 4px 0; }
 #settings-panel fieldset { min-width: 0; margin: 12px 0; border: 1px solid #496077; border-radius: 8px; }
+
+#controller-panel { width: min(420px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); overflow: auto; box-sizing: border-box; border: 1px solid #6585a4; border-radius: 12px; padding: 18px; background: #162739; color: white; font: 15px/1.4 system-ui; }
+#controller-panel h2 { font-size: 18px; }
+#controller-panel::backdrop { background: #061020bb; }
+#controller-panel button { min-height: 44px; padding: 8px 12px; margin: 4px; background: #294260; color: white; border: 1px solid #7e9ab1; border-radius: 8px; font: inherit; }
+
+#controller-panel button[aria-pressed="true"] { border-color: #81e6cc; background: #355b62; }

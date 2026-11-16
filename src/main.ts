@@ -1,3 +1,5 @@
+import { setupTextures } from './textures';
+import { createGamepad } from './gamepad';
 import { setupAudio, updateAudio, sfx } from './audio';
 import * as THREE from 'three';
 import { World, setTerrainLight, waterSpeed, zoneName } from './world';
@@ -9,6 +11,7 @@ import { setupTouch } from './touch';
 import './touch.css';
 
 setupAudio();
+setupTextures();
 const scene = new THREE.Scene();
 const sky = new THREE.Color(0xa7cde3);
 const daySky = sky.clone();
@@ -130,7 +133,7 @@ let ridePending = false;
 let lastCanvasPointer = 'mouse';
 
 async function toggleRide() {
-  if (ridePending || lan.entering || (lan.settingsOpen || arcade.open) || !lan.carsAvailable) return;
+  if (ridePending || lan.entering || (lan.settingsOpen || arcade.open || gamepad.open) || !lan.carsAvailable) return;
   const ride = cars.driving ? 'exit' : cars.nearby(player.position);
   if (!ride) return;
   ridePending = true;
@@ -141,7 +144,7 @@ async function toggleRide() {
 }
 carAction.addEventListener('click', () => { void toggleRide(); });
 spawnCar.addEventListener('click', async () => {
-  if (ridePending || (lan.settingsOpen || arcade.open) || !lan.carsAvailable || cars.driving) return;
+  if (ridePending || (lan.settingsOpen || arcade.open || gamepad.open) || !lan.carsAvailable || cars.driving) return;
   ridePending = true;
   spawnCar.disabled = true;
   if (!await lan.ride('spawn')) {
@@ -196,8 +199,14 @@ const touch = setupTouch(canvas, {
   camera: () => toggleCamera(false)
 });
 
+const gamepad = createGamepad({
+  jump: () => { jumpQueued = true; },
+  camera: () => toggleCamera(false),
+  ride: () => { void toggleRide(); }
+});
+
 window.addEventListener('keydown', (event) => {
-  if (lan.entering || (lan.settingsOpen || arcade.open)) return;
+  if (lan.entering || (lan.settingsOpen || arcade.open || gamepad.open)) return;
   if (event.code === 'KeyE' && !event.repeat) {
     void toggleRide();
     return;
@@ -287,16 +296,20 @@ function animate(time: number) {
   const delta = THREE.MathUtils.clamp((time - previousTime) / 1000, 0, 0.05);
   previousTime = time;
 
+  gamepad.update(!lan.entering && !lan.settingsOpen && !arcade.open);
+  if (!lan.entering && !lan.settingsOpen && !arcade.open && !gamepad.open) {
+    turn(gamepad.input.lookX * delta, gamepad.input.lookY * delta, 2.1);
+  }
   arcade.update(player.position, !lan.entering && !cars.driving && !lan.settingsOpen, time);
-  if (lan.settingsOpen || arcade.open) { keys.clear(); jumpQueued = false; }
+  if (lan.settingsOpen || arcade.open || gamepad.open) { keys.clear(); jumpQueued = false; }
   const previousX = player.position.x, previousZ = player.position.z;
-  const moveX = Number(keys.has('KeyD')) - Number(keys.has('KeyA')) + ((lan.settingsOpen || arcade.open) ? 0 : touch.x);
-  const moveZ = Number(keys.has('KeyW')) - Number(keys.has('KeyS')) + ((lan.settingsOpen || arcade.open) ? 0 : touch.y);
+  const moveX = Number(keys.has('KeyD')) - Number(keys.has('KeyA')) + gamepad.input.x + ((lan.settingsOpen || arcade.open || gamepad.open) ? 0 : touch.x);
+  const moveZ = Number(keys.has('KeyW')) - Number(keys.has('KeyS')) + gamepad.input.y + ((lan.settingsOpen || arcade.open || gamepad.open) ? 0 : touch.y);
   const sinYaw = Math.sin(yaw);
   const cosYaw = Math.cos(yaw);
   direction.set(cosYaw * moveX - sinYaw * moveZ, 0, -sinYaw * moveX - cosYaw * moveZ);
-  if (!(lan.settingsOpen || arcade.open) && !lan.entering && jumpQueued && cars.driving) cars.jump();
-  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open) ? 0 : moveX, (lan.settingsOpen || arcade.open) ? 0 : moveZ, delta);
+  if (!(lan.settingsOpen || arcade.open || gamepad.open) && !lan.entering && jumpQueued && cars.driving) cars.jump();
+  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveX, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveZ, delta);
   const driving = carYaw !== null;
   if (driving) {
     verticalVelocity = 0;
@@ -311,7 +324,7 @@ function animate(time: number) {
   const { position } = player;
   if (!driving && direction.lengthSq() > 0) {
     direction.clampLength(0, 1);
-    const running = touch.running || keys.has('ShiftLeft') || keys.has('ShiftRight');
+    const running = touch.running || gamepad.input.running || keys.has('ShiftLeft') || keys.has('ShiftRight');
     const distance = MOVE_SPEED * (running ? RUN_MULTIPLIER : 1) * waterSpeed(position.y, 0.46) * delta;
     step.copy(direction).multiplyScalar(distance);
     if (!hitsBuilding(position.x + step.x, position.z, 0.45)) position.x += step.x;

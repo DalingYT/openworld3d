@@ -1,3 +1,4 @@
+import { textured } from './textures';
 import * as THREE from 'three';
 import buildings from '../shared/city-buildings.json';
 
@@ -90,7 +91,9 @@ export function addCity(scene: THREE.Scene) {
 
   const matrix = new THREE.Matrix4();
   for (const [color, pieces] of batches) {
-    const mesh = new THREE.InstancedMesh(box, new THREE.MeshLambertMaterial({ color }), pieces.length);
+    const material = new THREE.MeshLambertMaterial({ color });
+    if (palette.includes(color)) textured(material, 'wall');
+    const mesh = new THREE.InstancedMesh(box, material, pieces.length);
     pieces.forEach(([x, y, z, w, h, d], i) => {
       matrix.makeScale(w, h, d).setPosition(x, y, z);
       mesh.setMatrixAt(i, matrix);

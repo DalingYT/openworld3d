@@ -1,3 +1,4 @@
+import { textured } from './textures';
 import * as THREE from 'three';
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 import { CITY_HEIGHT, CITY_LIMITS } from './city';
@@ -28,7 +29,7 @@ export function waterSpeed(height: number, minimum: number) {
   return lerp(1, minimum, smoothstep(WATER_LEVEL - height, 0.08, 0.9));
 }
 
-const terrainMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });
+const terrainMaterial = textured(new THREE.MeshBasicMaterial({ vertexColors: true }), 'ground');
 const waterMaterial = new THREE.MeshBasicMaterial({
   color: 0x3598b4,
   transparent: true,
@@ -69,6 +70,7 @@ function makeChunk(cx: number, cz: number) {
   const count = stride * stride;
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
+  const uv = new Float32Array(count * 2);
   const heights = new Float32Array(count);
 
   // One extra sample on each edge gives neighbouring chunks identical shading.
@@ -91,6 +93,8 @@ function makeChunk(cx: number, cz: number) {
       const s = (z + 1) * paddedStride + x + 1;
       const height = samples[s];
       heights[i] = height;
+      uv[i * 2] = x * CELL_SIZE / 8;
+      uv[i * 2 + 1] = z * CELL_SIZE / 8;
       positions[i * 3] = x * CELL_SIZE;
       positions[i * 3 + 1] = height;
       positions[i * 3 + 2] = z * CELL_SIZE;
@@ -113,6 +117,7 @@ function makeChunk(cx: number, cz: number) {
   }
 
   const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   // Each geometry owns its GPU index buffer so unloading one cannot affect another.
