@@ -77,7 +77,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     dirty = true;
   }
 
-  function spawnCar(player, response) {
+  function spawnCar(player, response, selectedColor = player.color) {
     if (!player.state || player.car || Date.now() < (player.nextSpawn ?? 0)) {
       return response.writeHead(409).end();
     }
@@ -88,6 +88,8 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       const carX = x - Math.sin(angle) * 5.75;
       const carZ = z - Math.cos(angle) * 5.75;
       if (!carSpaceFree(cars, carX, carZ, yaw, previous)) continue;
+      player.color = selectedColor;
+      dirty = true;
       if (previous) cars.delete(previous.id);
       const id = randomUUID();
       cars.set(id, {
@@ -178,7 +180,10 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
   }
 
   const move = withPlayer((player, { x, y, z, yaw, phrase, ride, drivingCar, carImpact, hat, color }, response) => {
-    if (ride === 'spawn') return spawnCar(player, response);
+    if (ride === 'spawn') {
+      if (color !== undefined && !colors.includes(color)) return response.writeHead(400).end();
+      return spawnCar(player, response, color);
+    }
     if (ride === 'exit') {
       leaveCar(player);
       return response.writeHead(204).end();

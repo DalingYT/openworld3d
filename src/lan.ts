@@ -251,7 +251,7 @@ export function createLan(
         const response = await fetch(serverUrl + '/lan/move', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, ride })
+          body: JSON.stringify({ token, ride, color: shop.color })
         });
         return response.ok;
       } catch {
