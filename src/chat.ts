@@ -17,6 +17,14 @@ export function createChat(scene: THREE.Scene, send: (phrase: string) => Promise
   panel.append(toggle, messages, buttons, notice);
   document.body.append(panel);
 
+  const reactions = new Map<THREE.Vector3, { sprite: THREE.Sprite; age: number }>();
+  function removeReaction(position: THREE.Vector3) {
+    const reaction = reactions.get(position); if (!reaction) return;
+    reaction.sprite.removeFromParent(); reaction.sprite.material.map?.dispose(); reaction.sprite.material.dispose(); reactions.delete(position);
+  }
+  const reactionButtons = document.createElement('div');
+  const reactionTitle = document.createElement('strong'); reactionTitle.textContent = 'Reacciones';
+  panel.append(reactionTitle, reactionButtons);
   let sending = false;
   for (const [phrase, text] of Object.entries(phrases)) {
     const button = document.createElement('button');
@@ -29,7 +37,7 @@ export function createChat(scene: THREE.Scene, send: (phrase: string) => Promise
       if (!await send(phrase)) notice.textContent = 'Espera un momento e inténtalo de nuevo.';
       sending = false;
     });
-    buttons.append(button);
+    (phrase.startsWith('emoji') ? reactionButtons : buttons).append(button);
   }
 
   // Every burst uses the same material and one draw call.
@@ -65,6 +73,7 @@ export function createChat(scene: THREE.Scene, send: (phrase: string) => Promise
       if (!value) {
         panel.open = false;
         messages.replaceChildren();
+        for (const position of reactions.keys()) removeReaction(position);
         toggle.textContent = 'Chat';
       }
     },
@@ -78,8 +87,24 @@ export function createChat(scene: THREE.Scene, send: (phrase: string) => Promise
       if (messages.childElementCount > 5) messages.firstElementChild?.remove();
       toggle.textContent = panel.open ? 'Chat' : name + ' · ' + phrases[phrase as keyof typeof phrases];
       if (phrase === 'party' && position) celebrate(position);
+      if (phrase.startsWith('emoji') && position) {
+        removeReaction(position);
+        const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
+        const ctx = canvas.getContext('2d')!;
+        ctx.font = '90px "Segoe UI Emoji", "Apple Color Emoji", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(phrases[phrase as keyof typeof phrases], 64, 68);
+        const map = new THREE.CanvasTexture(canvas); map.colorSpace = THREE.SRGBColorSpace;
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map, depthWrite: false }));
+        sprite.scale.setScalar(1.5); sprite.position.copy(position); sprite.position.y += 3.8;
+        scene.add(sprite); reactions.set(position, {sprite, age: 0});
+      }
     },
     update(delta: number) {
+      for (const [position, reaction] of reactions) {
+        reaction.age += delta;
+        if (reaction.age > 3) { removeReaction(position); continue; }
+        reaction.sprite.position.copy(position); reaction.sprite.position.y += 3.8;
+      }
       for (const burst of bursts) {
         burst.age += delta;
         if (burst.age >= 1.5) {

@@ -92,6 +92,9 @@ export function createCars(scene: THREE.Scene, world: World) {
   }
 
   return {
+    jump() {
+      if (driven() && verticalSpeed === null) verticalSpeed = RECOVERY_SPEED;
+    },
     get driving() { return Boolean(driven()); },
     get drivingId() { return driven()?.state.id ?? null; },
     get impactRevision() { return driven()?.state.impact; },
@@ -212,7 +215,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       const grade = Math.abs(ahead - floor) * 0.5;
       const traction = 1 - 0.5 * THREE.MathUtils.smoothstep(grade, 0.45, 1.35);
       const goal = (pedal < 0 ? 9 : 24) * pedal * waterSpeed(floor, 0.28) * traction;
-      speed = verticalSpeed === null ? THREE.MathUtils.lerp(speed, goal, 1 - Math.exp(-delta * 4.8)) : 0;
+      if (verticalSpeed === null) speed = THREE.MathUtils.lerp(speed, goal, 1 - Math.exp(-delta * 4.8));
       if (!pedal && Math.abs(speed) < 0.03) speed = 0;
       for (const part of mesh.children) {
         if (part.name === 'front-wheel') {

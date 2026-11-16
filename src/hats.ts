@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import catalog from '../shared/hats.json';
 import './hats.css';
+import colors from '../shared/colors.json';
 
 type HatId = keyof typeof catalog;
 type Piece = [color: number, x: number, y: number, z: number, w: number, h: number, depth: number];
@@ -60,10 +61,28 @@ export function equipHat(avatar: THREE.Group, id: unknown) {
   attachments.set(avatar, { id, mesh: group });
 }
 
-export function createHatShop(player: THREE.Group) {
+export function createHatShop(player: THREE.Group, setColor: (color: number) => void) {
   const trigger = document.querySelector<HTMLButtonElement>('#game-shop')!;
   const dialog = document.querySelector<HTMLDialogElement>('#hat-shop')!;
   const list = dialog.querySelector<HTMLElement>('#hat-catalog')!;
+  let selectedColor: number | undefined;
+  try { const saved = Number(localStorage.getItem('openworld3d.color')); if (colors.includes(saved)) selectedColor = saved; } catch {}
+  const palette = document.createElement('div');
+  palette.style.cssText = 'display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:12px 0';
+  const heading = document.createElement('h3'); heading.textContent = 'Color del personaje';
+  list.after(heading, palette);
+  const names = ['Azul', 'Rojo', 'Turquesa', 'Amarillo', 'Violeta', 'Rosa', 'Verde oscuro', 'Malva', 'Naranja', 'Verde', 'Lavanda', 'Índigo'];
+  const swatches: HTMLButtonElement[] = [];
+  function selectColor(color: number) {
+    selectedColor = color; setColor(color);
+    swatches.forEach((button, i) => { button.setAttribute('aria-pressed', String(colors[i] === color)); button.textContent = colors[i] === color ? '✓' : ''; });
+  }
+  colors.forEach((color, i) => {
+    const button = document.createElement('button'); button.type = 'button';
+    button.style.background = '#' + color.toString(16).padStart(6, '0'); button.setAttribute('aria-label', names[i]);
+    button.addEventListener('click', () => { selectColor(color); try { localStorage.setItem('openworld3d.color', String(color)); } catch {} });
+    swatches.push(button); palette.append(button);
+  });
   const buttons = new Map<HatId | null, HTMLButtonElement>();
   let selected: HatId | null = null;
   try {
@@ -111,6 +130,8 @@ export function createHatShop(player: THREE.Group) {
   dialog.querySelector('#shop-close')!.addEventListener('click', () => dialog.close());
 
   return {
+    get color() { return selectedColor; },
+    initializeColor(color: number) { selectColor(selectedColor ?? color); },
     get open() { return dialog.open; },
     get selected() { return selected; },
     setConnected(connected: boolean) {

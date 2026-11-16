@@ -70,7 +70,7 @@ export function createLan(
   let sending = false;
   let playerId = '';
   let carsAvailable = false;
-  const shop = createHatShop(player);
+  const shop = createHatShop(player, setColor);
   let clockStart = performance.now();
   const settings = createSettings(async data => {
     if (!token) return 404;
@@ -132,6 +132,11 @@ export function createLan(
         other.label = makeNameTag(state.name);
         other.avatar.add(other.label);
       }
+      const body = other.avatar.getObjectByName('body') as THREE.Mesh<THREE.BoxGeometry, THREE.MeshLambertMaterial>;
+      if (body.material.color.getHex() !== state.color) {
+        const template = makeAvatar(state.color).getObjectByName('body') as THREE.Mesh;
+        body.material = template.material as THREE.MeshLambertMaterial;
+      }
       other.target.set(state.x, state.y, state.z);
       other.yaw = state.yaw;
       equipHat(other.avatar, state.hat);
@@ -169,7 +174,7 @@ export function createLan(
       cars.setDriver(ready.id);
       if (ready.worldTime !== undefined) clockStart = performance.now() - ready.worldTime;
       chat.setConnected(ready.worldTime !== undefined);
-      setColor(ready.color);
+      shop.initializeColor(ready.color);
       lastSent = '';
       nextSend = 0;
       networkStatus.hidden = true;
@@ -269,7 +274,7 @@ export function createLan(
       const { x, y, z } = player.position;
       const body = JSON.stringify({
         token, x, y, z, yaw: player.rotation.y, drivingCar: cars.drivingId,
-        carImpact: cars.impactRevision, hat: shop.selected
+        carImpact: cars.impactRevision, hat: shop.selected, color: shop.color
       });
       if (body === lastSent) return;
       sending = true;

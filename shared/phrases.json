@@ -4,5 +4,10 @@
   "beach": "¡Vamos a la playa!",
   "thanks": "¡Gracias!",
   "bye": "¡Nos vemos!",
-  "party": "¡Fiesta! 🎉"
+  "party": "¡Fiesta! 🎉",
+  "emojiSmile": "😀",
+  "emojiLaugh": "😂",
+  "emojiCry": "😭",
+  "emojiParty": "🥳",
+  "emojiShock": "😱"
 }

@@ -1,0 +1,6 @@
+#arcade-panel { width: min(370px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); overflow: auto; box-sizing: border-box; background: #162739; color: white; border: 1px solid #6585a4; border-radius: 12px; padding: 18px; font: 15px system-ui; }
+#arcade-panel::backdrop { background: #061020bb; }
+#arcade-panel h2 { font-size: 20px; }
+#arcade-panel button { padding: 10px; margin: 3px; border: 1px solid #7e9ab1; border-radius: 8px; background: #294260; color: white; font: inherit; cursor: pointer; }
+.arcade-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+#arcade-panel .arcade-grid button { height: clamp(45px, 13vh, 76px); color: #ffdf40; font-size: 36px; touch-action: manipulation; }

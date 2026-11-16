@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { World, setTerrainLight, waterSpeed, zoneName } from './world';
 import { addCity, hitsBuilding } from './city';
+import { createArcade } from './arcade';
 import { createCars } from './cars';
 import { createLan } from './lan';
 import { setupTouch } from './touch';
@@ -57,6 +58,7 @@ scene.add(sun);
 const world = new World(scene);
 addCity(scene);
 const cars = createCars(scene, world);
+const arcade = createArcade(scene, world);
 const bodyGeometry = new THREE.BoxGeometry(1, 2, 1);
 const bodyMaterials = new Map<number, THREE.MeshLambertMaterial>();
 const faceGeometry = new THREE.PlaneGeometry(0.6, 0.6);
@@ -126,7 +128,7 @@ let ridePending = false;
 let lastCanvasPointer = 'mouse';
 
 async function toggleRide() {
-  if (ridePending || lan.entering || lan.settingsOpen || !lan.carsAvailable) return;
+  if (ridePending || lan.entering || (lan.settingsOpen || arcade.open) || !lan.carsAvailable) return;
   const ride = cars.driving ? 'exit' : cars.nearby(player.position);
   if (!ride) return;
   ridePending = true;
@@ -137,7 +139,7 @@ async function toggleRide() {
 }
 carAction.addEventListener('click', () => { void toggleRide(); });
 spawnCar.addEventListener('click', async () => {
-  if (ridePending || lan.settingsOpen || !lan.carsAvailable || cars.driving) return;
+  if (ridePending || (lan.settingsOpen || arcade.open) || !lan.carsAvailable || cars.driving) return;
   ridePending = true;
   spawnCar.disabled = true;
   if (!await lan.ride('spawn')) {
@@ -193,7 +195,7 @@ const touch = setupTouch(canvas, {
 });
 
 window.addEventListener('keydown', (event) => {
-  if (lan.entering || lan.settingsOpen) return;
+  if (lan.entering || (lan.settingsOpen || arcade.open)) return;
   if (event.code === 'KeyE' && !event.repeat) {
     void toggleRide();
     return;
@@ -282,12 +284,15 @@ function animate(time: number) {
   const delta = THREE.MathUtils.clamp((time - previousTime) / 1000, 0, 0.05);
   previousTime = time;
 
-  const moveX = Number(keys.has('KeyD')) - Number(keys.has('KeyA')) + touch.x;
-  const moveZ = Number(keys.has('KeyW')) - Number(keys.has('KeyS')) + touch.y;
+  arcade.update(player.position, !lan.entering && !cars.driving && !lan.settingsOpen, time);
+  if (lan.settingsOpen || arcade.open) { keys.clear(); jumpQueued = false; }
+  const moveX = Number(keys.has('KeyD')) - Number(keys.has('KeyA')) + ((lan.settingsOpen || arcade.open) ? 0 : touch.x);
+  const moveZ = Number(keys.has('KeyW')) - Number(keys.has('KeyS')) + ((lan.settingsOpen || arcade.open) ? 0 : touch.y);
   const sinYaw = Math.sin(yaw);
   const cosYaw = Math.cos(yaw);
   direction.set(cosYaw * moveX - sinYaw * moveZ, 0, -sinYaw * moveX - cosYaw * moveZ);
-  const carYaw = cars.update(player, lan.settingsOpen ? 0 : moveX, lan.settingsOpen ? 0 : moveZ, delta);
+  if (!(lan.settingsOpen || arcade.open) && !lan.entering && jumpQueued && cars.driving) cars.jump();
+  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open) ? 0 : moveX, (lan.settingsOpen || arcade.open) ? 0 : moveZ, delta);
   const driving = carYaw !== null;
   if (driving) {
     verticalVelocity = 0;
@@ -326,9 +331,9 @@ function animate(time: number) {
   jumpQueued = false;
 
   // Follow gentle downhill slopes and let gravity take over on steeper drops.
-  if (grounded && position.y - floor <= 9 * delta) {
+  if (!driving && grounded && position.y - floor <= 9 * delta) {
     position.y = floor;
-  } else {
+  } else if (!driving) {
     verticalVelocity += GRAVITY * delta;
     position.y += verticalVelocity * delta;
     grounded = position.y <= floor;

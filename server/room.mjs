@@ -3,11 +3,7 @@ import phrases from '../shared/phrases.json' with { type: 'json' };
 import { carSpaceFree, moveCar, coastParkedCars } from './car-physics.mjs';
 import hats from '../shared/hats.json' with { type: 'json' };
 
-const colors = [
-  0x3366ff, 0xf04b54, 0x13b8b2, 0xf5ad28, 0xa45bec, 0xf065ae,
-  0x256955, 0x6b4362, 0xff784b, 0x77b93c, 0xc5c8f5, 0x5038b7
-];
-
+import colors from '../shared/colors.json' with { type: 'json' };
 const codeFormat = /^[0-9]{8}$/;
 const ADMIN_WINDOW = 60_000;
 
@@ -181,7 +177,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     };
   }
 
-  const move = withPlayer((player, { x, y, z, yaw, phrase, ride, drivingCar, carImpact, hat }, response) => {
+  const move = withPlayer((player, { x, y, z, yaw, phrase, ride, drivingCar, carImpact, hat, color }, response) => {
     if (ride === 'spawn') return spawnCar(player, response);
     if (ride === 'exit') {
       leaveCar(player);
@@ -226,6 +222,8 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     if (hat !== undefined && hat !== null && (typeof hat !== 'string' || !Object.hasOwn(hats, hat))) {
       return response.writeHead(400).end();
     }
+    if (color !== undefined && !colors.includes(color)) return response.writeHead(400).end();
+    if (color !== undefined && color !== player.color) { player.color = color; dirty = true; }
     if (hat !== undefined && hat !== player.hat) {
       player.hat = hat;
       dirty = true;
