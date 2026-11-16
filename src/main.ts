@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { World, setTerrainLight } from './world';
+import { World, setTerrainLight, waterSpeed } from './world';
+import { addCity, hitsBuilding } from './city';
+import { createCars } from './cars';
 import { createLan } from './lan';
 import { setupTouch } from './touch';
 import './touch.css';
@@ -46,6 +48,8 @@ sun.position.set(10, 20, 10);
 scene.add(sun);
 
 const world = new World(scene);
+addCity(scene);
+const cars = createCars(scene, world);
 const bodyGeometry = new THREE.BoxGeometry(1, 2, 1);
 const bodyMaterials = new Map<number, THREE.MeshLambertMaterial>();
 const faceGeometry = new THREE.PlaneGeometry(0.6, 0.6);
@@ -89,7 +93,7 @@ spawn(0, -35);
 const lan = createLan(scene, player, makeAvatar, spawn, color => {
   const body = player.getObjectByName('body') as THREE.Mesh;
   body.material = avatarMaterial(color);
-});
+}, cars);
 
 const MOVE_SPEED = 5;
 const RUN_MULTIPLIER = 1.7;
@@ -108,7 +112,22 @@ let grounded = true;
 let jumpQueued = false;
 const keys = new Set<string>();
 const cameraButton = document.querySelector<HTMLButtonElement>('#touch-camera')!;
+const carAction = document.querySelector<HTMLButtonElement>('#car-action')!;
+const carActionText = carAction.querySelector('b')!;
+let ridePending = false;
 let lastCanvasPointer = 'mouse';
+
+async function toggleRide() {
+  if (ridePending || lan.entering || lan.settingsOpen || !lan.carsAvailable) return;
+  const ride = cars.driving ? 'exit' : cars.nearby(player.position);
+  if (!ride) return;
+  ridePending = true;
+  carAction.disabled = true;
+  await lan.ride(ride);
+  carAction.disabled = false;
+  ridePending = false;
+}
+carAction.addEventListener('click', () => { void toggleRide(); });
 
 function lockPointer() {
   if (document.pointerLockElement === canvas || !canvas.requestPointerLock) return;
@@ -156,6 +175,10 @@ const touch = setupTouch(canvas, {
 
 window.addEventListener('keydown', (event) => {
   if (lan.entering || lan.settingsOpen) return;
+  if (event.code === 'KeyE' && !event.repeat) {
+    void toggleRide();
+    return;
+  }
   if (event.code === 'KeyC' && !event.repeat) {
     const chat = document.querySelector<HTMLDetailsElement>('#game-chat')!;
     if (chat.hidden) return;
@@ -216,6 +239,7 @@ const direction = new THREE.Vector3();
 const eyes = new THREE.Vector3();
 const view = new THREE.Vector3();
 const target = new THREE.Vector3();
+const step = new THREE.Vector3();
 let previousTime = performance.now();
 let cameraFraction = 1;
 let coordinateText = '';
@@ -241,16 +265,30 @@ function animate(time: number) {
 
   const moveX = Number(keys.has('KeyD')) - Number(keys.has('KeyA')) + touch.x;
   const moveZ = Number(keys.has('KeyW')) - Number(keys.has('KeyS')) + touch.y;
+  const carYaw = cars.update(player, lan.settingsOpen ? 0 : moveZ, lan.settingsOpen ? 0 : moveX, delta);
+  const driving = carYaw !== null;
+  if (driving) {
+    yaw = carYaw;
+    verticalVelocity = 0;
+    grounded = true;
+  }
+  player.visible = thirdPerson && !driving;
+  const showCarAction = lan.carsAvailable && (driving || Boolean(cars.nearby(player.position)));
+  carAction.hidden = !showCarAction;
+  const actionText = driving ? 'Bajar del carro' : 'Subir al carro';
+  if (carActionText.textContent !== actionText) carActionText.textContent = actionText;
   const sinYaw = Math.sin(yaw);
   const cosYaw = Math.cos(yaw);
   direction.set(cosYaw * moveX - sinYaw * moveZ, 0, -sinYaw * moveX - cosYaw * moveZ);
 
   const { position } = player;
-  if (direction.lengthSq() > 0) {
+  if (!driving && direction.lengthSq() > 0) {
     direction.clampLength(0, 1);
     const running = touch.running || keys.has('ShiftLeft') || keys.has('ShiftRight');
-    const distance = MOVE_SPEED * (running ? RUN_MULTIPLIER : 1) * delta;
-    position.addScaledVector(direction, distance);
+    const distance = MOVE_SPEED * (running ? RUN_MULTIPLIER : 1) * waterSpeed(position.y, 0.46) * delta;
+    step.copy(direction).multiplyScalar(distance);
+    if (!hitsBuilding(position.x + step.x, position.z, 0.45)) position.x += step.x;
+    if (!hitsBuilding(position.x, position.z + step.z, 0.45)) position.z += step.z;
 
     if (thirdPerson) {
       const angle = Math.atan2(-direction.x, -direction.z);
@@ -258,11 +296,11 @@ function animate(time: number) {
       player.rotation.y += difference * Math.min(1, delta * ROTATION_SPEED);
     }
   }
-  if (!thirdPerson) player.rotation.y = yaw;
+  if (!thirdPerson && !driving) player.rotation.y = yaw;
 
   world.update(position.x, position.z);
   const floor = world.groundHeight(position.x, position.z);
-  if ((jumpQueued || keys.has('Space')) && grounded) {
+  if (!driving && (jumpQueued || keys.has('Space')) && grounded) {
     position.y = Math.max(position.y, floor);
     verticalVelocity = JUMP_FORCE;
     grounded = false;
@@ -283,12 +321,12 @@ function animate(time: number) {
   }
 
   eyes.copy(position);
-  eyes.y += 1.65;
+  eyes.y += driving ? 2.05 : 1.65;
   view.set(-sinYaw * Math.cos(pitch), Math.sin(pitch), -cosYaw * Math.cos(pitch));
 
-  if (thirdPerson) {
-    target.copy(view).multiplyScalar(-CAMERA_DISTANCE);
-    target.y += 2;
+  if (thirdPerson || driving) {
+    target.copy(view).multiplyScalar(driving ? -9.5 : -CAMERA_DISTANCE);
+    target.y += driving ? 3.2 : 2;
     let clearFraction = 1;
     for (let step = 1; step <= 20; step++) {
       const fraction = step / 20;

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
+import { CITY_HEIGHT, CITY_LIMITS } from './city';
 
 const CHUNK_SIZE = 64;
 const SEGMENTS = 24;
@@ -17,7 +18,14 @@ function terrainHeight(x: number, z: number) {
   const inland = smoothstep(coast, -0.13, 0.32);
   const mountains = smoothstep(hills, -0.08, 0.55);
 
-  return Math.max(-12, 2.5 + coast * 40 + inland * (mountains * 64 + detail * 7));
+  const height = Math.max(-12, 2.5 + coast * 40 + inland * (mountains * 64 + detail * 7));
+  const { minX, maxX, minZ, maxZ } = CITY_LIMITS;
+  const edge = Math.max(minX - x, x - maxX, minZ - z, z - maxZ);
+  return lerp(CITY_HEIGHT, height, smoothstep(edge, 0, 11));
+}
+
+export function waterSpeed(height: number, minimum: number) {
+  return lerp(1, minimum, smoothstep(WATER_LEVEL - height, 0.08, 0.9));
 }
 
 const terrainMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });

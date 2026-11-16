@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createChat } from './chat';
 import { createSettings } from './settings';
+import type { CarState, Cars } from './cars';
 
 const serverUrl = (import.meta.env.VITE_MULTIPLAYER_URL ?? '').replace(/\/+$/, '');
 
@@ -12,6 +13,7 @@ type PlayerState = {
   y: number;
   z: number;
   yaw: number;
+  car?: string | null;
 };
 
 function makeNameTag(name: string) {
@@ -47,7 +49,8 @@ export function createLan(
   player: THREE.Group,
   makeAvatar: (color: number) => THREE.Group,
   spawn: (x: number, z: number) => void,
-  setColor: (color: number) => void
+  setColor: (color: number) => void,
+  cars: Cars
 ) {
   const dialog = document.querySelector<HTMLDialogElement>('#apodo')!;
   const form = dialog.querySelector('form')!;
@@ -70,6 +73,7 @@ export function createLan(
   let lastSent = '';
   let sending = false;
   let playerId = '';
+  let carsAvailable = false;
   let clockStart = performance.now();
   const settings = createSettings(async data => {
     if (!token) return 404;
@@ -138,6 +142,7 @@ export function createLan(
       }
       other.target.set(state.x, state.y, state.z);
       other.yaw = state.yaw;
+      other.avatar.visible = !state.car;
     }
   }
 
@@ -159,11 +164,14 @@ export function createLan(
 
     connection.addEventListener('ready', event => {
       const ready = JSON.parse(event.data) as {
-        id: string; token: string; x: number; z: number; color: number; worldTime?: number; moderation?: boolean;
+        id: string; token: string; x: number; z: number; color: number;
+        worldTime?: number; moderation?: boolean; cars?: boolean;
       };
       token = ready.token;
       settings.setConnected(true, ready.moderation);
       playerId = ready.id;
+      carsAvailable = ready.cars === true;
+      cars.setDriver(ready.id);
       if (ready.worldTime !== undefined) clockStart = performance.now() - ready.worldTime;
       chat.setConnected(ready.worldTime !== undefined);
       setColor(ready.color);
@@ -178,6 +186,9 @@ export function createLan(
     connection.addEventListener('players', event => {
       if (token) updatePlayers(JSON.parse(event.data) as PlayerState[]);
     });
+    connection.addEventListener('cars', event => {
+      if (token) cars.receive(JSON.parse(event.data) as CarState[]);
+    });
     connection.addEventListener('renamed', event => {
       input.value = (JSON.parse(event.data) as { name: string }).name;
     });
@@ -185,6 +196,8 @@ export function createLan(
       connection.close();
       stream = null;
       token = null;
+      carsAvailable = false;
+      cars.setDriver('');
       joined = false;
       settings.setConnected(false);
       chat.setConnected(false);
@@ -201,6 +214,8 @@ export function createLan(
     });
     connection.addEventListener('error', () => {
       token = null;
+      carsAvailable = false;
+      cars.setDriver('');
       settings.setConnected(false);
       chat.setConnected(false);
       updatePlayers([]);
@@ -225,6 +240,20 @@ export function createLan(
   return {
     get entering() { return dialog.open; },
     get settingsOpen() { return settings.open; },
+    get carsAvailable() { return carsAvailable; },
+    async ride(ride: string) {
+      if (!token || !carsAvailable) return false;
+      try {
+        const response = await fetch(serverUrl + '/lan/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, ride })
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    },
     worldTime(time: number) { return time - clockStart; },
     update(time: number, delta: number) {
       chat.update(delta);
@@ -239,7 +268,7 @@ export function createLan(
       if (!token || sending || time < nextSend) return;
       nextSend = time + 80;
       const { x, y, z } = player.position;
-      const body = JSON.stringify({ token, x, y, z, yaw: player.rotation.y });
+      const body = JSON.stringify({ token, x, y, z, yaw: player.rotation.y, drivingCar: cars.drivingId });
       if (body === lastSent) return;
       sending = true;
       void fetch(serverUrl + '/lan/move', {
