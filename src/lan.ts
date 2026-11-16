@@ -58,6 +58,7 @@ export function createLan(
   const others = new Map<string, {
     avatar: THREE.Group;
     label: THREE.Sprite;
+    name: string;
     target: THREE.Vector3;
     yaw: number;
   }>();
@@ -70,13 +71,13 @@ export function createLan(
   let sending = false;
   let playerId = '';
   let clockStart = performance.now();
-  const settings = createSettings(async code => {
+  const settings = createSettings(async data => {
     if (!token) return 404;
     try {
       const result = await fetch(serverUrl + '/lan/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, code })
+        body: JSON.stringify({ token, ...data })
       });
       return result.status;
     } catch {
@@ -101,12 +102,18 @@ export function createLan(
     const other = others.get(key);
     if (!other) return;
     other.avatar.removeFromParent();
-    other.label.material.map?.dispose();
-    other.label.material.dispose();
+    disposeNameTag(other.label);
     others.delete(key);
   }
 
+  function disposeNameTag(label: THREE.Sprite) {
+    label.removeFromParent();
+    label.material.map?.dispose();
+    label.material.dispose();
+  }
+
   function updatePlayers(states: PlayerState[]) {
+    settings.setPlayers(states.map(({ id, name }) => ({ id, name })));
     const ids = new Set(states.map(state => state.id));
     for (const key of others.keys()) {
       if (!ids.has(key)) removePlayer(key);
@@ -120,8 +127,14 @@ export function createLan(
         const label = makeNameTag(state.name);
         avatar.add(label);
         scene.add(avatar);
-        other = { avatar, label, target: new THREE.Vector3(), yaw: state.yaw };
+        other = { avatar, label, name: state.name, target: new THREE.Vector3(), yaw: state.yaw };
         others.set(state.id, other);
+      }
+      if (other.name !== state.name) {
+        disposeNameTag(other.label);
+        other.name = state.name;
+        other.label = makeNameTag(state.name);
+        other.avatar.add(other.label);
       }
       other.target.set(state.x, state.y, state.z);
       other.yaw = state.yaw;
@@ -146,10 +159,10 @@ export function createLan(
 
     connection.addEventListener('ready', event => {
       const ready = JSON.parse(event.data) as {
-        id: string; token: string; x: number; z: number; color: number; worldTime?: number;
+        id: string; token: string; x: number; z: number; color: number; worldTime?: number; moderation?: boolean;
       };
       token = ready.token;
-      settings.setConnected(true);
+      settings.setConnected(true, ready.moderation);
       playerId = ready.id;
       if (ready.worldTime !== undefined) clockStart = performance.now() - ready.worldTime;
       chat.setConnected(ready.worldTime !== undefined);
@@ -164,6 +177,21 @@ export function createLan(
     });
     connection.addEventListener('players', event => {
       if (token) updatePlayers(JSON.parse(event.data) as PlayerState[]);
+    });
+    connection.addEventListener('renamed', event => {
+      input.value = (JSON.parse(event.data) as { name: string }).name;
+    });
+    connection.addEventListener('kicked', () => {
+      connection.close();
+      stream = null;
+      token = null;
+      joined = false;
+      settings.setConnected(false);
+      chat.setConnected(false);
+      updatePlayers([]);
+      button.disabled = false;
+      status.textContent = 'Un administrador te expulsó de la partida.';
+      dialog.showModal();
     });
     connection.addEventListener('chat', event => {
       if (!token) return;

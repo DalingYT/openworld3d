@@ -1,11 +1,13 @@
-#game-settings {
+#game-tools {
   position: fixed;
   z-index: 2;
   top: max(12px, env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  gap: 6px;
 }
-#game-settings,
-#settings-panel button {
+#game-tools button,
+:is(#settings-panel, #admin-panel) button {
   min-height: 34px;
   padding: 6px 10px;
   border: 1px solid #5d758a;
@@ -15,12 +17,15 @@
   font: 14px system-ui, sans-serif;
   cursor: pointer;
 }
+@media (max-width: 420px) {
+  #game-tools button { padding-inline: 6px; font-size: 12px; }
+}
 body #game-chat {
   top: max(54px, calc(env(safe-area-inset-top) + 42px));
 }
 .hide-coordinates #coordinates { display: none; }
 
-#settings-panel {
+:is(#settings-panel, #admin-panel) {
   box-sizing: border-box;
   width: min(360px, calc(100vw - 28px));
   padding: 18px;
@@ -31,13 +36,16 @@ body #game-chat {
   color-scheme: dark;
   font: 16px/1.4 system-ui, sans-serif;
 }
-#settings-panel::backdrop { background: #0b1827a8; }
-#settings-panel header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-#settings-panel h2 { margin: 0; font-size: 18px; }
-#settings-panel label { display: block; margin: 12px 0 6px; }
+:is(#settings-panel, #admin-panel)::backdrop { background: #0b1827a8; }
+:is(#settings-panel, #admin-panel) header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+:is(#settings-panel, #admin-panel) h2 { margin: 0; font-size: 18px; }
+:is(#settings-panel, #admin-panel) label { display: block; margin: 12px 0 6px; }
 #settings-panel details { margin-top: 12px; border-top: 1px solid #496077; padding-top: 12px; }
 #settings-panel summary { cursor: pointer; }
-#admin-form input {
+#admin-form input,
+#admin-moderation input,
+#admin-moderation select,
+#admin-commands input {
   box-sizing: border-box;
   width: 100%;
   padding: 8px;
@@ -46,6 +54,10 @@ body #game-chat {
   border-radius: 6px;
   font: inherit;
 }
+.admin-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#admin-kick { background: #693638; }
+#admin-commands { margin-top: 16px; border-top: 1px solid #496077; }
+#admin-command-help { margin: 0 0 8px; font-size: 13px; }
 #settings-panel button:disabled { opacity: 0.6; }
-#admin-status { font-size: 14px; }
-#admin-status:empty { display: none; }
+:is(#admin-status, #moderation-status) { font-size: 14px; }
+:is(#admin-status, #moderation-status):empty { display: none; }

@@ -46,10 +46,19 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
   }, 80);
   timer.unref();
 
+  function disconnect(token, slot) {
+    if (!players.delete(token)) return;
+    slots.delete(slot);
+    dirty = true;
+  }
 
   function join(request, response) {
     if (request.method !== 'GET') {
       response.writeHead(405).end();
+      return;
+    }
+    if (request.headers['last-event-id'] === 'kicked') {
+      response.writeHead(204).end();
       return;
     }
     const url = new URL(request.url ?? '/', 'http://localhost');
@@ -71,19 +80,15 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     const usedColors = new Set([...players.values()].map(player => player.color));
     const freeColors = colors.filter(color => !usedColors.has(color));
     const color = freeColors[randomInt(freeColors.length)];
-    players.set(token, { id, name, color, response, state: null });
-    response.on('close', () => {
-      players.delete(token);
-      slots.delete(slot);
-      dirty = true;
-    });
+    players.set(token, { id, name, color, response, slot, state: null });
+    response.on('close', () => disconnect(token, slot));
 
     response.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       'X-Accel-Buffering': 'no'
     });
-    send(response, 'ready', { id, token, color, worldTime: Date.now() - startTime,
+    send(response, 'ready', { id, token, color, moderation: true, worldTime: Date.now() - startTime,
       x: [0, 3, -3, 6][slot % 4], z: -35 - Math.floor(slot / 4) * 3 });
     dirty = true;
   }
@@ -151,8 +156,34 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     response.writeHead(204).end();
   });
 
-  const admin = withPlayer((player, { code }, response) => {
+  function moderate(player, { action, targetId, name }, response) {
+    if (!player.admin) return response.writeHead(403).end();
+    if (action !== 'rename' && action !== 'kick') return response.writeHead(400).end();
+    const targetEntry = [...players].find(([, target]) => target.id === targetId && target !== player);
+    if (!targetEntry) return response.writeHead(404).end();
+    const [targetToken, target] = targetEntry;
+
+    if (action === 'rename') {
+      const nickname = typeof name === 'string' ? name.trim() : '';
+      if (!nickname || nickname.length > 24 || /[\p{Cc}\p{Cf}]/u.test(nickname)) {
+        return response.writeHead(400).end();
+      }
+      target.name = nickname;
+      send(target.response, 'renamed', { name: nickname });
+      dirty = true;
+    } else {
+      target.response.write('id: kicked\n');
+      send(target.response, 'kicked', {});
+      target.response.end();
+      disconnect(targetToken, target.slot);
+    }
+    response.writeHead(204).end();
+  }
+
+  const admin = withPlayer((player, data, response) => {
     response.setHeader('Cache-Control', 'no-store');
+    if (data.action !== undefined) return moderate(player, data, response);
+    const { code } = data;
     if (!secret) return response.writeHead(503).end();
     if (player.admin) return response.writeHead(204).end();
     if (typeof code !== 'string' || !codeFormat.test(code)) return response.writeHead(400).end();

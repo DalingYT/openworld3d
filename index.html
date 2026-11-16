@@ -69,7 +69,10 @@
       <p id="coordinates" aria-label="Coordenadas del jugador" hidden></p>
       <p id="lan-status" role="status" hidden></p>
     </div>
-    <button id="game-settings" type="button" aria-haspopup="dialog" hidden>Configuración</button>
+    <div id="game-tools">
+      <button id="game-settings" type="button" aria-haspopup="dialog" hidden>Configuración</button>
+      <button id="game-admin" type="button" aria-haspopup="dialog" hidden>Administrador</button>
+    </div>
     <dialog id="settings-panel" aria-labelledby="settings-title">
       <header>
         <h2 id="settings-title">Configuración</h2>
@@ -85,6 +88,30 @@
         </form>
         <p id="admin-status" role="status"></p>
       </details>
+    </dialog>
+    <dialog id="admin-panel" aria-labelledby="admin-title">
+      <header>
+        <h2 id="admin-title">Administrador</h2>
+        <button id="admin-close" type="button">Cerrar</button>
+      </header>
+      <form id="admin-moderation">
+        <label for="admin-player">Jugador</label>
+        <select id="admin-player" required></select>
+        <label for="admin-nickname">Nuevo apodo</label>
+        <input id="admin-nickname" maxlength="24" />
+        <div class="admin-actions">
+          <button type="submit">Cambiar apodo</button>
+          <button type="button" id="admin-kick">Expulsar</button>
+        </div>
+      </form>
+      <form id="admin-commands" autocomplete="off">
+        <label for="admin-command">Comando para el jugador seleccionado</label>
+        <input id="admin-command" maxlength="32" autocapitalize="off" spellcheck="false"
+          aria-describedby="admin-command-help" required />
+        <p id="admin-command-help"><code>/kick</code> o <code>/rename nuevo apodo</code></p>
+        <button type="submit">Ejecutar</button>
+      </form>
+      <p id="moderation-status" role="status"></p>
     </dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>
