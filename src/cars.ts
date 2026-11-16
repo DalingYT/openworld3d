@@ -297,7 +297,8 @@ export function createCars(scene: THREE.Scene, world: World) {
       if (verticalSpeed !== null) {
         position.y += verticalSpeed * delta - 0.5 * RECOVERY_GRAVITY * delta * delta;
         verticalSpeed -= RECOVERY_GRAVITY * delta;
-        if (position.y <= ground && verticalSpeed <= 0) {
+        // Rising terrain can meet the car before the upward jump ends.
+        if (position.y <= ground) {
           sfx(ground < 0 ? 'splash' : 'land');
           position.y = ground;
           verticalSpeed = null;
