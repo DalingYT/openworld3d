@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createChat } from './chat';
 
 const serverUrl = (import.meta.env.VITE_MULTIPLAYER_URL ?? '').replace(/\/+$/, '');
 
@@ -66,6 +67,21 @@ export function createLan(
   let nextSend = 0;
   let lastSent = '';
   let sending = false;
+  let playerId = '';
+  let clockStart = performance.now();
+  const chat = createChat(scene, async phrase => {
+    if (!token) return false;
+    try {
+      const response = await fetch(serverUrl + '/lan/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, phrase })
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  });
 
   function removePlayer(key: string) {
     const other = others.get(key);
@@ -115,8 +131,13 @@ export function createLan(
     stream = connection;
 
     connection.addEventListener('ready', event => {
-      const ready = JSON.parse(event.data) as { token: string; x: number; z: number; color: number };
+      const ready = JSON.parse(event.data) as {
+        id: string; token: string; x: number; z: number; color: number; worldTime?: number;
+      };
       token = ready.token;
+      playerId = ready.id;
+      if (ready.worldTime !== undefined) clockStart = performance.now() - ready.worldTime;
+      chat.setConnected(ready.worldTime !== undefined);
       setColor(ready.color);
       lastSent = '';
       nextSend = 0;
@@ -129,8 +150,15 @@ export function createLan(
     connection.addEventListener('players', event => {
       if (token) updatePlayers(JSON.parse(event.data) as PlayerState[]);
     });
+    connection.addEventListener('chat', event => {
+      if (!token) return;
+      const { id, name, phrase } = JSON.parse(event.data) as { id: string; name: string; phrase: string };
+      const avatar = id === playerId ? player : others.get(id)?.avatar;
+      chat.receive(name, phrase, avatar?.position);
+    });
     connection.addEventListener('error', () => {
       token = null;
+      chat.setConnected(false);
       updatePlayers([]);
       if (joined) {
         networkStatus.textContent = connection.readyState === EventSource.CLOSED
@@ -152,7 +180,9 @@ export function createLan(
 
   return {
     get entering() { return dialog.open; },
+    worldTime(time: number) { return time - clockStart; },
     update(time: number, delta: number) {
+      chat.update(delta);
       const mix = 1 - Math.exp(-delta * 16);
       for (const { avatar, target, label, yaw } of others.values()) {
         avatar.position.lerp(target, mix);

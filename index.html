@@ -29,17 +29,24 @@
       #apodo button:disabled { opacity: 0.65; cursor: wait; }
       #apodo p { margin: 0; font-size: 14px; }
       #apodo p:empty { display: none; }
-      #lan-status {
+      #game-status {
         position: fixed;
-        top: 16px;
-        left: 16px;
+        top: max(12px, env(safe-area-inset-top));
+        left: max(12px, env(safe-area-inset-left));
+        color: #fff;
+        font: 13px system-ui, sans-serif;
+        pointer-events: none;
+      }
+      #game-status p {
         margin: 0;
         padding: 8px 12px;
         border-radius: 6px;
         background: #162739;
-        color: #fff;
-        font: 13px system-ui, sans-serif;
-        pointer-events: none;
+      }
+      #coordinates { width: max-content; font-variant-numeric: tabular-nums; }
+      #lan-status:not([hidden]) { margin-top: 4px; }
+      @media (max-width: 480px) {
+        body #game-chat { top: max(50px, calc(env(safe-area-inset-top) + 38px)); }
       }
     </style>
   </head>
@@ -61,7 +68,10 @@
         <p role="status"></p>
       </form>
     </dialog>
-    <p id="lan-status" role="status" hidden></p>
+    <div id="game-status">
+      <p id="coordinates" aria-label="Coordenadas del jugador" hidden></p>
+      <p id="lan-status" role="status" hidden></p>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

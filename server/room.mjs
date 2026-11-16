@@ -1,4 +1,5 @@
 import { randomInt, randomUUID } from 'node:crypto';
+import phrases from '../shared/phrases.json' with { type: 'json' };
 
 const colors = [
   0x3366ff, 0xf04b54, 0x13b8b2, 0xf5ad28, 0xa45bec, 0xf065ae,
@@ -10,6 +11,7 @@ export function createRoom() {
   const slots = new Set();
   let dirty = false;
   let lastPing = Date.now();
+  const startTime = lastPing;
 
   function send(response, event, data) {
     if (response.writableLength > 64 * 1024) {
@@ -76,7 +78,8 @@ export function createRoom() {
       'Cache-Control': 'no-cache, no-transform',
       'X-Accel-Buffering': 'no'
     });
-    send(response, 'ready', { id, token, color, x: [0, 3, -3, 6][slot % 4], z: -35 - Math.floor(slot / 4) * 3 });
+    send(response, 'ready', { id, token, color, worldTime: Date.now() - startTime,
+      x: [0, 3, -3, 6][slot % 4], z: -35 - Math.floor(slot / 4) * 3 });
     dirty = true;
   }
 
@@ -99,10 +102,26 @@ export function createRoom() {
           return;
         }
       }
-      const { token, x, y, z, yaw } = JSON.parse(body);
+      const { token, x, y, z, yaw, phrase } = JSON.parse(body);
       const player = players.get(token);
       if (!player) {
         response.writeHead(404).end();
+        return;
+      }
+      if (phrase !== undefined) {
+        if (typeof phrase !== 'string' || !Object.hasOwn(phrases, phrase)) {
+          response.writeHead(400).end();
+          return;
+        }
+        const now = Date.now();
+        if (now < (player.nextChat ?? 0)) {
+          response.writeHead(429).end();
+          return;
+        }
+        player.nextChat = now + 1800;
+        const message = { id: player.id, name: player.name, phrase };
+        for (const other of players.values()) send(other.response, 'chat', message);
+        response.writeHead(204).end();
         return;
       }
       if (![x, y, z, yaw].every(Number.isFinite)) {

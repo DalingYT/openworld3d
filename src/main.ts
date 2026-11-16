@@ -1,13 +1,18 @@
 import * as THREE from 'three';
-import { World } from './world';
+import { World, setTerrainLight } from './world';
 import { createLan } from './lan';
 import { setupTouch } from './touch';
 import './touch.css';
 
 const scene = new THREE.Scene();
 const sky = new THREE.Color(0xa7cde3);
+const daySky = sky.clone();
+const sunsetSky = new THREE.Color(0xe39c7b);
+const nightSky = new THREE.Color(0x263858);
+const twilight = new THREE.Color();
 scene.background = sky;
-scene.fog = new THREE.Fog(sky, 90, 185);
+const fog = new THREE.Fog(sky, 90, 185);
+scene.fog = fog;
 
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.08, 190);
 const renderer = new THREE.WebGLRenderer({ powerPreference: 'low-power' });
@@ -27,13 +32,15 @@ document.body.style.margin = '0';
 document.body.style.overflow = 'hidden';
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.append(canvas);
+const coordinates = document.querySelector<HTMLParagraphElement>('#coordinates')!;
 
 const controls = document.createElement('p');
 controls.id = 'keyboard-controls';
 controls.style.cssText = 'position:fixed;left:16px;bottom:16px;margin:0;padding:8px 12px;border-radius:6px;background:#162739d9;color:white;font:13px system-ui;pointer-events:none';
 app.append(controls);
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x668866, 2));
+const ambient = new THREE.HemisphereLight(0xffffff, 0x668866, 2);
+scene.add(ambient);
 const sun = new THREE.DirectionalLight(0xffffff, 2);
 sun.position.set(10, 20, 10);
 scene.add(sun);
@@ -119,7 +126,7 @@ function showControls() {
   cameraButton.setAttribute('aria-pressed', String(thirdPerson));
   const cameraHint = thirdPerson ? 'Clic derecho para girar' :
     document.pointerLockElement === canvas ? 'Esc para liberar el cursor' : 'Haz clic para mirar';
-  controls.textContent = 'WASD mover · Shift correr · Espacio saltar · T cambiar cámara · ' + cameraHint;
+  controls.textContent = 'WASD mover · Shift correr · Espacio saltar · T cámara · C chat · ' + cameraHint;
 }
 showControls();
 
@@ -149,7 +156,15 @@ const touch = setupTouch(canvas, {
 
 window.addEventListener('keydown', (event) => {
   if (lan.entering) return;
+  if (event.code === 'KeyC' && !event.repeat) {
+    const chat = document.querySelector<HTMLDetailsElement>('#game-chat')!;
+    if (chat.hidden) return;
+    unlockPointer();
+    chat.open = !chat.open;
+    return;
+  }
   if (event.code === 'Space') {
+    if (event.target instanceof HTMLElement && event.target.closest('#game-chat')) return;
     event.preventDefault();
     if (!event.repeat) jumpQueued = true;
   }
@@ -203,6 +218,22 @@ const view = new THREE.Vector3();
 const target = new THREE.Vector3();
 let previousTime = performance.now();
 let cameraFraction = 1;
+let coordinateText = '';
+const DAY_LENGTH = 8 * 60 * 1000;
+
+function updateDaylight(time: number) {
+  const angle = (lan.worldTime(time) / DAY_LENGTH) * Math.PI * 2;
+  const altitude = Math.cos(angle);
+  const daylight = THREE.MathUtils.smoothstep(altitude, -0.18, 0.46);
+  const horizon = 1 - THREE.MathUtils.smoothstep(Math.abs(altitude), 0, 0.29);
+  twilight.copy(nightSky).lerp(daySky, daylight);
+  sky.copy(twilight).lerp(sunsetSky, horizon * 0.82);
+  fog.color.copy(sky);
+  ambient.intensity = 0.68 + daylight * 1.32;
+  sun.intensity = 0.13 + daylight * 1.87;
+  sun.position.set(20 * Math.sin(angle), Math.max(0.3, altitude) * 25, 10);
+  setTerrainLight(0.29 + daylight * 0.71);
+}
 
 function animate(time: number) {
   const delta = THREE.MathUtils.clamp((time - previousTime) / 1000, 0, 0.05);
@@ -277,6 +308,15 @@ function animate(time: number) {
   }
 
   lan.update(time, delta);
+  if (!lan.entering) {
+    const text = `X ${Math.round(position.x)} · Y ${Math.round(position.y)} · Z ${Math.round(position.z)}`;
+    if (text !== coordinateText) {
+      coordinateText = text;
+      coordinates.textContent = text;
+      coordinates.hidden = false;
+    }
+  }
+  updateDaylight(time);
   renderer.render(scene, camera);
 }
 

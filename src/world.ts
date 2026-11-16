@@ -30,6 +30,12 @@ const waterMaterial = new THREE.MeshBasicMaterial({
 });
 const waterGeometry = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE);
 waterGeometry.rotateX(-Math.PI / 2);
+const waterColor = waterMaterial.color.clone();
+
+export function setTerrainLight(brightness: number) {
+  terrainMaterial.color.setScalar(brightness);
+  waterMaterial.color.copy(waterColor).multiplyScalar(brightness);
+}
 
 const sand = new THREE.Color(0xe8c98d);
 const grass = new THREE.Color(0x73944d);

@@ -1,0 +1,43 @@
+#game-chat {
+  position: fixed;
+  z-index: 1;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  width: max-content;
+  max-width: min(300px, calc(100vw - 24px));
+  color: white;
+  background: #162739ed;
+  border-radius: 9px;
+  font: 14px/1.35 system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+#game-chat summary {
+  min-height: 28px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+#game-chat ol {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px;
+  max-height: 24vh;
+  overflow-y: auto;
+}
+#game-chat div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
+}
+#game-chat button {
+  border: 1px solid #5d758a;
+  border-radius: 6px;
+  min-height: 36px;
+  padding: 4px 8px;
+  color: white;
+  background: #2c465f;
+  cursor: pointer;
+  font: inherit;
+}
+#game-chat p { margin: 0 12px 8px; }
+#game-chat p:empty { display: none; }

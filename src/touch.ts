@@ -72,9 +72,21 @@ export function setupTouch(
     run.setAttribute('aria-pressed', String(running));
   }
 
-  document.querySelector('#touch-jump')!.addEventListener('click', actions.jump);
+  function onPress(button: HTMLButtonElement, action: () => void) {
+    button.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      action();
+    });
+    // Touch and mouse already acted on pointerdown. Keep keyboard activation.
+    button.addEventListener('click', event => {
+      if (event.detail === 0) action();
+    });
+  }
+
+  onPress(document.querySelector<HTMLButtonElement>('#touch-jump')!, actions.jump);
   document.querySelector('#touch-camera')!.addEventListener('click', actions.camera);
-  run.addEventListener('click', () => setRunning(!touch.running));
+  onPress(run, () => setRunning(!touch.running));
   window.addEventListener('blur', () => {
     resetStick();
     lookId = null;

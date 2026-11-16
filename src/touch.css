@@ -64,4 +64,13 @@
 }
 
 #touch-camera { grid-column: 1 / -1; }
+#touch-controls #touch-jump {
+  min-width: clamp(82px, 24vmin, 112px);
+  min-height: clamp(70px, 20vmin, 94px);
+  border-radius: 18px;
+  background: #a8dbff;
+  color: #0b1827;
+  font-size: 16px;
+}
+#touch-controls #touch-jump:active { background: #d7efff; }
 #touch-controls button[aria-pressed="true"] { background: #a8dbff; color: #0b1827; }
