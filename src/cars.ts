@@ -21,15 +21,21 @@ const headlight = new THREE.MeshBasicMaterial({ color: 0xffecaa });
 const taillight = new THREE.MeshBasicMaterial({ color: 0xd32835 });
 const bodyMaterials = new Map<number, THREE.MeshLambertMaterial>();
 
-function makeCar(color: number) {
+function bodyMaterial(color: number) {
   let body = bodyMaterials.get(color);
   if (!body) {
     body = new THREE.MeshLambertMaterial({ color });
     bodyMaterials.set(color, body);
   }
+  return body;
+}
+
+function makeCar(color: number) {
+  const body = bodyMaterial(color);
   const car = new THREE.Group();
   function piece(material: THREE.Material, x: number, y: number, z: number, w: number, h: number, d: number) {
     const mesh = new THREE.Mesh(box, material);
+    if (material === body) mesh.name = 'paint';
     mesh.position.set(x, y, z);
     mesh.scale.set(w, h, d);
     car.add(mesh);
@@ -120,6 +126,11 @@ export function createCars(scene: THREE.Scene, world: World) {
           scene.add(mesh);
           car = { mesh, label, state, lift: 0, targetLift: 0 };
           cars.set(state.id, car);
+        }
+        if (car.state.color !== state.color) {
+          for (const part of car.mesh.children) {
+            if (part.name === 'paint') (part as THREE.Mesh).material = bodyMaterial(state.color);
+          }
         }
         if (car.state.name !== state.name) {
           disposeNameTag(car.label);

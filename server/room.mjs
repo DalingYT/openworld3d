@@ -223,7 +223,12 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       return response.writeHead(400).end();
     }
     if (color !== undefined && !colors.includes(color)) return response.writeHead(400).end();
-    if (color !== undefined && color !== player.color) { player.color = color; dirty = true; }
+    if (color !== undefined && color !== player.color) {
+      player.color = color;
+      dirty = true;
+      const owned = cars.get(player.ownedCar);
+      if (owned) { owned.color = color; carsDirty = true; }
+    }
     if (hat !== undefined && hat !== player.hat) {
       player.hat = hat;
       dirty = true;
