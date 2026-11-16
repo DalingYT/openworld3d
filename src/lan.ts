@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createChat } from './chat';
+import { createSettings } from './settings';
 
 const serverUrl = (import.meta.env.VITE_MULTIPLAYER_URL ?? '').replace(/\/+$/, '');
 
@@ -69,6 +70,19 @@ export function createLan(
   let sending = false;
   let playerId = '';
   let clockStart = performance.now();
+  const settings = createSettings(async code => {
+    if (!token) return 404;
+    try {
+      const result = await fetch(serverUrl + '/lan/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, code })
+      });
+      return result.status;
+    } catch {
+      return 0;
+    }
+  });
   const chat = createChat(scene, async phrase => {
     if (!token) return false;
     try {
@@ -135,6 +149,7 @@ export function createLan(
         id: string; token: string; x: number; z: number; color: number; worldTime?: number;
       };
       token = ready.token;
+      settings.setConnected(true);
       playerId = ready.id;
       if (ready.worldTime !== undefined) clockStart = performance.now() - ready.worldTime;
       chat.setConnected(ready.worldTime !== undefined);
@@ -158,6 +173,7 @@ export function createLan(
     });
     connection.addEventListener('error', () => {
       token = null;
+      settings.setConnected(false);
       chat.setConnected(false);
       updatePlayers([]);
       if (joined) {
@@ -180,6 +196,7 @@ export function createLan(
 
   return {
     get entering() { return dialog.open; },
+    get settingsOpen() { return settings.open; },
     worldTime(time: number) { return time - clockStart; },
     update(time: number, delta: number) {
       chat.update(delta);

@@ -155,7 +155,7 @@ const touch = setupTouch(canvas, {
 });
 
 window.addEventListener('keydown', (event) => {
-  if (lan.entering) return;
+  if (lan.entering || lan.settingsOpen) return;
   if (event.code === 'KeyC' && !event.repeat) {
     const chat = document.querySelector<HTMLDetailsElement>('#game-chat')!;
     if (chat.hidden) return;

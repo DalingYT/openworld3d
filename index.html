@@ -45,9 +45,6 @@
       }
       #coordinates { width: max-content; font-variant-numeric: tabular-nums; }
       #lan-status:not([hidden]) { margin-top: 4px; }
-      @media (max-width: 480px) {
-        body #game-chat { top: max(50px, calc(env(safe-area-inset-top) + 38px)); }
-      }
     </style>
   </head>
   <body>
@@ -72,6 +69,23 @@
       <p id="coordinates" aria-label="Coordenadas del jugador" hidden></p>
       <p id="lan-status" role="status" hidden></p>
     </div>
+    <button id="game-settings" type="button" aria-haspopup="dialog" hidden>Configuración</button>
+    <dialog id="settings-panel" aria-labelledby="settings-title">
+      <header>
+        <h2 id="settings-title">Configuración</h2>
+        <button id="settings-close" type="button" autofocus>Cerrar</button>
+      </header>
+      <label><input id="settings-coordinates" type="checkbox" checked /> Mostrar coordenadas</label>
+      <details id="settings-admin">
+        <summary>Administrador</summary>
+        <form id="admin-form" autocomplete="off">
+          <label for="admin-code">Código de 8 dígitos</label>
+          <input id="admin-code" type="password" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" required />
+          <button type="submit">Acceder</button>
+        </form>
+        <p id="admin-status" role="status"></p>
+      </details>
+    </dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

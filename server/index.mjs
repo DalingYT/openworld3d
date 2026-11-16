@@ -17,7 +17,9 @@ const server = createServer((request, response) => {
     return;
   }
 
-  const handler = pathname === '/lan/join' ? room.join : pathname === '/lan/move' ? room.move : null;
+  const handler = pathname === '/lan/join' ? room.join
+    : pathname === '/lan/move' ? room.move
+      : pathname === '/lan/admin' ? room.admin : null;
   if (!handler) {
     response.writeHead(404).end();
     return;

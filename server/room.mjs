@@ -1,4 +1,4 @@
-import { randomInt, randomUUID } from 'node:crypto';
+import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import phrases from '../shared/phrases.json' with { type: 'json' };
 
 const colors = [
@@ -6,9 +6,14 @@ const colors = [
   0x256955, 0x6b4362, 0xff784b, 0x77b93c, 0xc5c8f5, 0x5038b7
 ];
 
-export function createRoom() {
+const codeFormat = /^[0-9]{8}$/;
+const ADMIN_WINDOW = 60_000;
+
+export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
   const players = new Map();
   const slots = new Set();
+  const secret = typeof adminCode === 'string' && codeFormat.test(adminCode) ? Buffer.from(adminCode) : null;
+  const failedAttempts = [];
   let dirty = false;
   let lastPing = Date.now();
   const startTime = lastPing;
@@ -83,62 +88,90 @@ export function createRoom() {
     dirty = true;
   }
 
-  async function move(request, response) {
-    if (request.method !== 'POST') {
-      response.writeHead(405).end();
-      return;
-    }
-    if (request.headers['content-type'] !== 'application/json') {
-      response.writeHead(415).end();
-      return;
-    }
+  function withPlayer(handler) {
+    return async (request, response) => {
+      if (request.method !== 'POST') {
+        response.writeHead(405).end();
+        return;
+      }
+      if (request.headers['content-type'] !== 'application/json') {
+        response.writeHead(415).end();
+        return;
+      }
 
-    try {
-      let body = '';
-      for await (const piece of request) {
-        body += piece;
-        if (body.length > 512) {
-          response.writeHead(413).end();
+      try {
+        let body = '';
+        for await (const piece of request) {
+          body += piece;
+          if (body.length > 512) {
+            response.writeHead(413).end();
+            return;
+          }
+        }
+        const { token, ...data } = JSON.parse(body);
+        const player = players.get(token);
+        if (!player) {
+          response.writeHead(404).end();
           return;
         }
+        handler(player, data, response);
+      } catch {
+        if (!response.headersSent) response.writeHead(400).end();
       }
-      const { token, x, y, z, yaw, phrase } = JSON.parse(body);
-      const player = players.get(token);
-      if (!player) {
-        response.writeHead(404).end();
-        return;
-      }
-      if (phrase !== undefined) {
-        if (typeof phrase !== 'string' || !Object.hasOwn(phrases, phrase)) {
-          response.writeHead(400).end();
-          return;
-        }
-        const now = Date.now();
-        if (now < (player.nextChat ?? 0)) {
-          response.writeHead(429).end();
-          return;
-        }
-        player.nextChat = now + 1800;
-        const message = { id: player.id, name: player.name, phrase };
-        for (const other of players.values()) send(other.response, 'chat', message);
-        response.writeHead(204).end();
-        return;
-      }
-      if (![x, y, z, yaw].every(Number.isFinite)) {
+    };
+  }
+
+  const move = withPlayer((player, { x, y, z, yaw, phrase }, response) => {
+    if (phrase !== undefined) {
+      if (typeof phrase !== 'string' || !Object.hasOwn(phrases, phrase)) {
         response.writeHead(400).end();
         return;
       }
-
-      const previous = player.state;
-      if (!previous || x !== previous.x || y !== previous.y || z !== previous.z || yaw !== previous.yaw) {
-        player.state = { x, y, z, yaw };
-        dirty = true;
+      const now = Date.now();
+      if (now < (player.nextChat ?? 0)) {
+        response.writeHead(429).end();
+        return;
       }
+      player.nextChat = now + 1800;
+      const message = { id: player.id, name: player.name, phrase };
+      for (const other of players.values()) send(other.response, 'chat', message);
       response.writeHead(204).end();
-    } catch {
-      if (!response.headersSent) response.writeHead(400).end();
+      return;
     }
-  }
+    if (![x, y, z, yaw].every(Number.isFinite)) {
+      response.writeHead(400).end();
+      return;
+    }
 
-  return { join, move, close: () => clearInterval(timer) };
+    const previous = player.state;
+    if (!previous || x !== previous.x || y !== previous.y || z !== previous.z || yaw !== previous.yaw) {
+      player.state = { x, y, z, yaw };
+      dirty = true;
+    }
+    response.writeHead(204).end();
+  });
+
+  const admin = withPlayer((player, { code }, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    if (!secret) return response.writeHead(503).end();
+    if (player.admin) return response.writeHead(204).end();
+    if (typeof code !== 'string' || !codeFormat.test(code)) return response.writeHead(400).end();
+
+    const now = Date.now();
+    while (failedAttempts.length && now - failedAttempts[0] >= ADMIN_WINDOW) failedAttempts.shift();
+    if (failedAttempts.length >= 20 || now < (player.nextAdminAttempt ?? 0)) {
+      response.writeHead(429, { 'Retry-After': '60' }).end();
+      return;
+    }
+    if (!timingSafeEqual(Buffer.from(code), secret)) {
+      failedAttempts.push(now);
+      player.nextAdminAttempt = now + 2500;
+      response.writeHead(403).end();
+      return;
+    }
+    player.admin = true;
+    response.writeHead(204).end();
+  });
+
+  return { join, move, admin, close: () => clearInterval(timer) };
 }

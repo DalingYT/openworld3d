@@ -15,3 +15,9 @@ Ejecuta `npm ci` y después `npm run dev`. En esta PC abre la dirección **Local
 El plan gratuito de Render puede tardar alrededor de un minuto en arrancar tras estar inactivo. Si pasa, abre primero `/health` y espera su respuesta antes de entrar al juego.
 
 [GitHub Pages con Vite](https://vite.dev/guide/static-deploy#github-pages) · [Render Blueprints](https://render.com/docs/infrastructure-as-code) · [Plan gratuito de Render](https://render.com/docs/free)
+
+## Acceso de administrador
+
+Para probar en LAN, crea un archivo `.env.local` en la raíz del proyecto. Añade `ADMIN_CODE=` seguido de tu código de ocho dígitos y reinicia Vite. El archivo está excluido de Git.
+
+En Render, añade la variable de entorno `ADMIN_CODE` al servicio y vuelve a desplegarlo. Usa el código en **Configuración → Administrador** dentro del juego. El permiso termina al desconectarse.

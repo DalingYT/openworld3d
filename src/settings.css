@@ -1,0 +1,51 @@
+#game-settings {
+  position: fixed;
+  z-index: 2;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+}
+#game-settings,
+#settings-panel button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #5d758a;
+  border-radius: 7px;
+  background: #162739;
+  color: white;
+  font: 14px system-ui, sans-serif;
+  cursor: pointer;
+}
+body #game-chat {
+  top: max(54px, calc(env(safe-area-inset-top) + 42px));
+}
+.hide-coordinates #coordinates { display: none; }
+
+#settings-panel {
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 28px));
+  padding: 18px;
+  border: 1px solid #496077;
+  border-radius: 12px;
+  background: #162739;
+  color: white;
+  color-scheme: dark;
+  font: 16px/1.4 system-ui, sans-serif;
+}
+#settings-panel::backdrop { background: #0b1827a8; }
+#settings-panel header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#settings-panel h2 { margin: 0; font-size: 18px; }
+#settings-panel label { display: block; margin: 12px 0 6px; }
+#settings-panel details { margin-top: 12px; border-top: 1px solid #496077; padding-top: 12px; }
+#settings-panel summary { cursor: pointer; }
+#admin-form input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px;
+  margin: 0 0 10px;
+  border: 1px solid #8098b0;
+  border-radius: 6px;
+  font: inherit;
+}
+#settings-panel button:disabled { opacity: 0.6; }
+#admin-status { font-size: 14px; }
+#admin-status:empty { display: none; }
