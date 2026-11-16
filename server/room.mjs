@@ -1,6 +1,6 @@
 import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import phrases from '../shared/phrases.json' with { type: 'json' };
-import carModels from '../shared/cars.json' with { type: 'json' };
+import { carSpaceFree, moveCar, coastParkedCars } from './car-physics.mjs';
 import hats from '../shared/hats.json' with { type: 'json' };
 
 const colors = [
@@ -14,7 +14,7 @@ const ADMIN_WINDOW = 60_000;
 export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
   const players = new Map();
   const slots = new Set();
-  const cars = new Map(carModels.map(({ id, x, z, yaw }) => [id, { id, x, z, yaw, driver: null }]));
+  const cars = new Map();
   const secret = typeof adminCode === 'string' && codeFormat.test(adminCode) ? Buffer.from(adminCode) : null;
   const failedAttempts = [];
   let dirty = false;
@@ -46,7 +46,8 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
         else response.write(': ping\n\n');
       }
     }
-    if (carsDirty) {
+    const parkedMoved = coastParkedCars(cars, 0.08);
+    if (carsDirty || parkedMoved) {
       const snapshot = [...cars.values()];
       for (const player of players.values()) send(player.response, 'cars', snapshot);
       carsDirty = false;
@@ -59,6 +60,10 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     const player = players.get(token);
     if (!player) return;
     leaveCar(player);
+    if (player.ownedCar) {
+      cars.delete(player.ownedCar);
+      carsDirty = true;
+    }
     players.delete(token);
     slots.delete(slot);
     dirty = true;
@@ -68,10 +73,37 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     if (!player.car) return;
     const car = cars.get(player.car);
     car.driver = null;
+    car.vx = 0;
+    car.vz = 0;
     delete car.y;
     player.car = null;
     carsDirty = true;
     dirty = true;
+  }
+
+  function spawnCar(player, response) {
+    if (!player.state || player.car || Date.now() < (player.nextSpawn ?? 0)) {
+      return response.writeHead(409).end();
+    }
+    const previous = cars.get(player.ownedCar);
+    const { x, z, yaw } = player.state;
+    for (const offset of [0, Math.PI / 2, -Math.PI / 2, Math.PI]) {
+      const angle = yaw + offset;
+      const carX = x - Math.sin(angle) * 5.75;
+      const carZ = z - Math.cos(angle) * 5.75;
+      if (!carSpaceFree(cars, carX, carZ, yaw, previous)) continue;
+      if (previous) cars.delete(previous.id);
+      const id = randomUUID();
+      cars.set(id, {
+        id, owner: player.id, name: player.name, color: player.color, driver: null,
+        x: carX, z: carZ, yaw, vx: 0, vz: 0, impact: 0
+      });
+      player.ownedCar = id;
+      player.nextSpawn = Date.now() + 1500;
+      carsDirty = true;
+      return response.writeHead(204).end();
+    }
+    response.writeHead(409).end();
   }
 
   function join(request, response) {
@@ -110,7 +142,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       'Cache-Control': 'no-cache, no-transform',
       'X-Accel-Buffering': 'no'
     });
-    send(response, 'ready', { id, token, color, moderation: true, cars: true, worldTime: Date.now() - startTime,
+    send(response, 'ready', { id, token, color, moderation: true, spawnCars: true, worldTime: Date.now() - startTime,
       x: [0, 3, -3, 6][slot % 4], z: -35 - Math.floor(slot / 4) * 3 });
     send(response, 'cars', [...cars.values()]);
     dirty = true;
@@ -149,14 +181,17 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     };
   }
 
-  const move = withPlayer((player, { x, y, z, yaw, phrase, ride, drivingCar, hat }, response) => {
+  const move = withPlayer((player, { x, y, z, yaw, phrase, ride, drivingCar, carImpact, hat }, response) => {
+    if (ride === 'spawn') return spawnCar(player, response);
     if (ride === 'exit') {
       leaveCar(player);
       return response.writeHead(204).end();
     }
     if (typeof ride === 'string') {
       const car = cars.get(ride);
-      if (!car || car.driver || player.car || !player.state) return response.writeHead(409).end();
+      if (!car || car.owner !== player.id || car.driver || player.car || !player.state) {
+        return response.writeHead(409).end();
+      }
       if (Math.hypot(player.state.x - car.x, player.state.z - car.z) > 5.5) {
         return response.writeHead(409).end();
       }
@@ -187,6 +222,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       return;
     }
     if (player.car !== (drivingCar ?? null)) return response.writeHead(409).end();
+    if (player.car && carImpact !== cars.get(player.car).impact) return response.writeHead(409).end();
     if (hat !== undefined && hat !== null && (typeof hat !== 'string' || !Object.hasOwn(hats, hat))) {
       return response.writeHead(400).end();
     }
@@ -197,10 +233,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
 
     if (player.car) {
       const car = cars.get(player.car);
-      car.x = x;
-      car.y = y;
-      car.z = z;
-      car.yaw = yaw;
+      moveCar(cars, car, { x, y, z, yaw });
       carsDirty = true;
     }
     const previous = player.state;
@@ -224,6 +257,10 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
         return response.writeHead(400).end();
       }
       target.name = nickname;
+      if (target.ownedCar) {
+        cars.get(target.ownedCar).name = nickname;
+        carsDirty = true;
+      }
       send(target.response, 'renamed', { name: nickname });
       dirty = true;
     } else {

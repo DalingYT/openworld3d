@@ -114,6 +114,7 @@ const keys = new Set<string>();
 const cameraButton = document.querySelector<HTMLButtonElement>('#touch-camera')!;
 const carAction = document.querySelector<HTMLButtonElement>('#car-action')!;
 const carActionText = carAction.querySelector('b')!;
+const spawnCar = document.querySelector<HTMLButtonElement>('#car-spawn')!;
 let ridePending = false;
 let lastCanvasPointer = 'mouse';
 
@@ -128,6 +129,17 @@ async function toggleRide() {
   ridePending = false;
 }
 carAction.addEventListener('click', () => { void toggleRide(); });
+spawnCar.addEventListener('click', async () => {
+  if (ridePending || lan.settingsOpen || !lan.carsAvailable || cars.driving) return;
+  ridePending = true;
+  spawnCar.disabled = true;
+  if (!await lan.ride('spawn')) {
+    spawnCar.textContent = 'No se pudo sacar el carro';
+    window.setTimeout(() => { spawnCar.textContent = 'Sacar carro'; }, 1800);
+  }
+  spawnCar.disabled = false;
+  ridePending = false;
+});
 
 function lockPointer() {
   if (document.pointerLockElement === canvas || !canvas.requestPointerLock) return;
@@ -277,6 +289,7 @@ function animate(time: number) {
   player.visible = thirdPerson && !driving;
   const showCarAction = lan.carsAvailable && (driving || Boolean(cars.nearby(player.position)));
   carAction.hidden = !showCarAction;
+  spawnCar.hidden = !lan.carsAvailable || driving;
   const actionText = driving ? 'Bajar del carro' : 'Subir al carro';
   if (carActionText.textContent !== actionText) carActionText.textContent = actionText;
   const { position } = player;

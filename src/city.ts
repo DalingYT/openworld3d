@@ -1,13 +1,12 @@
 import * as THREE from 'three';
+import buildings from '../shared/city-buildings.json';
 
 export const CITY_HEIGHT = 5.5;
 export const CITY_LIMITS = { minX: -52, maxX: 52, minZ: -156, maxZ: -42 };
 
-const buildings: { x: number; z: number; halfX: number; halfZ: number }[] = [];
-
 export function hitsBuilding(x: number, z: number, radius: number) {
   return buildings.some(block =>
-    Math.abs(x - block.x) < block.halfX + radius && Math.abs(z - block.z) < block.halfZ + radius
+    Math.abs(x - block.x) < 4 + radius && Math.abs(z - block.z) < 6 + radius
   );
 }
 
@@ -74,10 +73,9 @@ export function addCity(scene: THREE.Scene) {
   for (const [col, x] of [-18, 18].entries()) {
     for (const [row, z] of [-128.5, -95.5].entries()) {
       add(curb, x, y + 0.13, z, 24, 0.28, 21);
-      for (const [pair, offset] of [-6, 6].entries()) {
-        const bx = x + offset;
+      for (const pair of [0, 1]) {
+        const bx = buildings[(col * 2 + row) * 2 + pair].x;
         const height = 7 + ((row * 3 + col * 2 + pair * 4) % 9);
-        buildings.push({ x: bx, z, halfX: 4, halfZ: 6 });
         add(palette[(row * 2 + col + pair) % palette.length], bx, y + height / 2, z, 8, height, 12);
         add(0x575e66, bx, y + height + 0.15, z, 8.2, 0.3, 12.2);
         for (let floor = 3; floor < height - 1; floor += 2.7) {

@@ -45,11 +45,17 @@
       }
       #coordinates { width: max-content; font-variant-numeric: tabular-nums; }
       #lan-status:not([hidden]) { margin-top: 4px; }
-      #car-action {
+      #car-controls {
         position: fixed;
         left: 50%;
         bottom: max(56px, calc(env(safe-area-inset-bottom) + 42px));
         transform: translateX(-50%);
+        display: flex;
+        gap: 6px;
+        width: max-content;
+        max-width: calc(100vw - 24px);
+      }
+      #car-controls button {
         min-height: 44px;
         padding: 6px 12px;
         border: 1px solid #9cb5c9;
@@ -61,14 +67,17 @@
         touch-action: manipulation;
       }
       @media (any-pointer: coarse) {
-        #car-action { bottom: max(150px, calc(env(safe-area-inset-bottom) + 135px)); }
+        #car-controls { bottom: max(150px, calc(env(safe-area-inset-bottom) + 135px)); }
         #car-action span { display: none; }
       }
     </style>
   </head>
   <body>
     <div id="app"></div>
-    <button id="car-action" type="button" hidden><span>E · </span><b>Subir al carro</b></button>
+    <div id="car-controls">
+      <button id="car-spawn" type="button" hidden>Sacar carro</button>
+      <button id="car-action" type="button" hidden><span>E · </span><b>Subir al carro</b></button>
+    </div>
     <div id="touch-controls" aria-label="Controles táctiles">
       <div id="joystick" aria-label="Mover"><span></span></div>
       <div id="touch-actions">

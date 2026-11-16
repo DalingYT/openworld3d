@@ -3,6 +3,7 @@ import { createChat } from './chat';
 import { createSettings } from './settings';
 import { createHatShop, equipHat } from './hats';
 import type { CarState, Cars } from './cars';
+import { makeNameTag, disposeNameTag } from './name-tag';
 
 const serverUrl = (import.meta.env.VITE_MULTIPLAYER_URL ?? '').replace(/\/+$/, '');
 
@@ -17,34 +18,6 @@ type PlayerState = {
   car?: string | null;
   hat?: string | null;
 };
-
-function makeNameTag(name: string) {
-  const image = document.createElement('canvas');
-  image.width = 256;
-  image.height = 48;
-  const ctx = image.getContext('2d')!;
-  ctx.font = '600 24px system-ui';
-  const width = Math.min(252, Math.ceil(ctx.measureText(name).width) + 20);
-  ctx.fillStyle = '#162739e8';
-  ctx.beginPath();
-  ctx.roundRect((256 - width) / 2, 3, width, 42, 9);
-  ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(name, 128, 24, 232);
-
-  const map = new THREE.CanvasTexture(image);
-  map.colorSpace = THREE.SRGBColorSpace;
-  const label = new THREE.Sprite(new THREE.SpriteMaterial({
-    map,
-    transparent: true,
-    depthWrite: false
-  }));
-  label.position.y = 2.45;
-  label.scale.set(3.2, 0.6, 1);
-  return label;
-}
 
 export function createLan(
   scene: THREE.Scene,
@@ -113,12 +86,6 @@ export function createLan(
     others.delete(key);
   }
 
-  function disposeNameTag(label: THREE.Sprite) {
-    label.removeFromParent();
-    label.material.map?.dispose();
-    label.material.dispose();
-  }
-
   function updatePlayers(states: PlayerState[]) {
     settings.setPlayers(states.map(({ id, name }) => ({ id, name })));
     const ids = new Set(states.map(state => state.id));
@@ -170,13 +137,13 @@ export function createLan(
     connection.addEventListener('ready', event => {
       const ready = JSON.parse(event.data) as {
         id: string; token: string; x: number; z: number; color: number;
-        worldTime?: number; moderation?: boolean; cars?: boolean;
+        worldTime?: number; moderation?: boolean; spawnCars?: boolean;
       };
       token = ready.token;
       shop.setConnected(true);
       settings.setConnected(true, ready.moderation);
       playerId = ready.id;
-      carsAvailable = ready.cars === true;
+      carsAvailable = ready.spawnCars === true;
       cars.setDriver(ready.id);
       if (ready.worldTime !== undefined) clockStart = performance.now() - ready.worldTime;
       chat.setConnected(ready.worldTime !== undefined);
@@ -193,7 +160,7 @@ export function createLan(
       if (token) updatePlayers(JSON.parse(event.data) as PlayerState[]);
     });
     connection.addEventListener('cars', event => {
-      if (token) cars.receive(JSON.parse(event.data) as CarState[]);
+      if (token && carsAvailable) cars.receive(JSON.parse(event.data) as CarState[]);
     });
     connection.addEventListener('renamed', event => {
       input.value = (JSON.parse(event.data) as { name: string }).name;
@@ -205,6 +172,7 @@ export function createLan(
       shop.setConnected(false);
       carsAvailable = false;
       cars.setDriver('');
+      cars.receive([]);
       joined = false;
       settings.setConnected(false);
       chat.setConnected(false);
@@ -224,6 +192,7 @@ export function createLan(
       shop.setConnected(false);
       carsAvailable = false;
       cars.setDriver('');
+      cars.receive([]);
       settings.setConnected(false);
       chat.setConnected(false);
       updatePlayers([]);
@@ -277,7 +246,8 @@ export function createLan(
       nextSend = time + 80;
       const { x, y, z } = player.position;
       const body = JSON.stringify({
-        token, x, y, z, yaw: player.rotation.y, drivingCar: cars.drivingId, hat: shop.selected
+        token, x, y, z, yaw: player.rotation.y, drivingCar: cars.drivingId,
+        carImpact: cars.impactRevision, hat: shop.selected
       });
       if (body === lastSent) return;
       sending = true;
