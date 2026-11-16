@@ -57,7 +57,7 @@ function makeCar(color: number) {
 }
 
 export function createCars(scene: THREE.Scene, world: World) {
-  function alignToTerrain(mesh: THREE.Group, yaw: number, level = false) {
+  function alignToTerrain(mesh: THREE.Group, yaw: number, level = false, delta = 1) {
     const { x, z } = mesh.position;
     const sin = Math.sin(yaw);
     const cos = Math.cos(yaw);
@@ -67,7 +67,9 @@ export function createCars(scene: THREE.Scene, world: World) {
     const left = world.groundHeight(x - cos, z + sin);
     const pitch = Math.atan2(front - rear, 2.4);
     const roll = Math.atan2(right - left, 2);
-    mesh.rotation.set(level ? 0 : pitch, yaw, level ? 0 : roll, 'YXZ');
+    const blend = 1 - Math.exp(-delta * 9);
+    mesh.rotation.set(THREE.MathUtils.lerp(mesh.rotation.x, level ? 0 : pitch, blend), yaw,
+      THREE.MathUtils.lerp(mesh.rotation.z, level ? 0 : roll, blend), 'YXZ');
     return Math.abs(roll) > 1.25 || Math.abs(pitch) > 1.4;
   }
 
@@ -83,6 +85,8 @@ export function createCars(scene: THREE.Scene, world: World) {
   let recoveryUsed = false;
   let bumpX = 0;
   let bumpZ = 0;
+  let steeringAngle = 0;
+  let groundVelocity = 0;
 
   function driven() {
     if (!driverId) return;
@@ -140,7 +144,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         const tookWheel = state.driver === driverId && car.state.driver !== driverId;
         const hit = state.driver === driverId && car.state.impact !== state.impact;
         if (tookWheel || hit) {
-          car.mesh.position.set(state.x, world.groundHeight(state.x, state.z), state.z);
+          car.mesh.position.set(state.x, state.y ?? world.groundHeight(state.x, state.z), state.z);
           alignToTerrain(car.mesh, state.yaw);
           const forwardX = -Math.sin(state.yaw);
           const forwardZ = -Math.cos(state.yaw);
@@ -150,7 +154,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         }
         car.state = state;
         car.targetLift = state.y === undefined ? 0
-          : THREE.MathUtils.clamp(state.y - world.groundHeight(state.x, state.z), 0, 2.3);
+          : THREE.MathUtils.clamp(state.y - world.groundHeight(state.x, state.z), 0, 80);
       }
     },
     nearby(position: THREE.Vector3) {
@@ -185,7 +189,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         const angle = state.yaw - mesh.rotation.y;
         const shortest = Math.atan2(Math.sin(angle), Math.cos(angle));
         const yaw = Math.abs(shortest) < 0.01 ? state.yaw : mesh.rotation.y + shortest * mix;
-        alignToTerrain(mesh, yaw, car.lift > 0.2);
+        alignToTerrain(mesh, yaw, car.lift > 0.2, delta);
       }
 
       if (!own) {
@@ -194,6 +198,8 @@ export function createCars(scene: THREE.Scene, world: World) {
           bumpX = 0;
           bumpZ = 0;
           verticalSpeed = null;
+          groundVelocity = 0;
+          steeringAngle = 0;
           blockedTime = 0;
           tippedTime = 0;
           recoveryUsed = false;
@@ -216,21 +222,43 @@ export function createCars(scene: THREE.Scene, world: World) {
       const { position, rotation } = mesh;
       const pedal = THREE.MathUtils.clamp(throttle, -1, 1);
       const steer = THREE.MathUtils.clamp(steering, -1, 1);
-      const travel = Math.sign(Math.abs(speed) > 0.1 ? speed : pedal);
-      const steeringGrip = THREE.MathUtils.smoothstep(Math.abs(speed), 0.12, 3.5)
-        * THREE.MathUtils.lerp(2.35, 1.3, Math.min(1, Math.abs(speed) / 24));
-      const yaw = rotation.y - steer * travel * steeringGrip * delta;
+      const oldYaw = rotation.y;
+      const oldVX = bumpX - Math.sin(oldYaw) * speed;
+      const oldVZ = bumpZ - Math.cos(oldYaw) * speed;
+      steeringAngle = THREE.MathUtils.lerp(steeringAngle, steer * 0.48, 1 - Math.exp(-delta * 7));
+      const turning = THREE.MathUtils.clamp(speed * Math.tan(steeringAngle) / 2.4, -1.7, 1.7);
+      const yaw = oldYaw - turning * delta * (verticalSpeed === null ? 1 : 0.18);
+      const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+      const rx = Math.cos(yaw), rz = -Math.sin(yaw);
+      // Carry world momentum through a turn; tires gradually remove sideways slip.
+      speed = oldVX * fx + oldVZ * fz;
+      const sideways = oldVX * rx + oldVZ * rz;
+      const grip = THREE.MathUtils.lerp(9, 2.2, THREE.MathUtils.smoothstep(Math.abs(speed * steeringAngle), 3, 10));
+      const lateral = sideways * Math.exp(-delta * (verticalSpeed === null ? grip : 0));
+      bumpX = lateral * rx;
+      bumpZ = lateral * rz;
       const floor = world.groundHeight(position.x, position.z);
-      const ahead = world.groundHeight(position.x - Math.sin(yaw) * travel * 2,
-        position.z - Math.cos(yaw) * travel * 2);
-      const grade = Math.abs(ahead - floor) * 0.5;
-      const traction = 1 - 0.5 * THREE.MathUtils.smoothstep(grade, 0.45, 1.35);
-      const goal = (pedal < 0 ? 9 : 24) * pedal * waterSpeed(floor, 0.28) * traction;
-      if (verticalSpeed === null) speed = THREE.MathUtils.lerp(speed, goal, 1 - Math.exp(-delta * 4.8));
-      if (!pedal && Math.abs(speed) < 0.03) speed = 0;
+      const ahead = world.groundHeight(position.x + fx * 2, position.z + fz * 2);
+      const slope = (ahead - floor) / 2;
+      if (verticalSpeed === null) {
+        const wet = waterSpeed(floor, 0.28);
+        const limit = (pedal < 0 ? 9 : 24) * wet;
+        const braking = pedal !== 0 && pedal * speed < -0.2;
+        if (braking) {
+          const amount = 22 * Math.abs(pedal) * delta;
+          speed = Math.sign(speed) * Math.max(0, Math.abs(speed) - amount);
+        } else if (pedal) {
+          speed += pedal * 8.5 * delta;
+        }
+        const resistance = (1.1 + 0.012 * speed * speed + (1 - wet) * 12) * delta;
+        speed = Math.sign(speed) * Math.max(0, Math.abs(speed) - resistance);
+        speed -= 5 * slope / Math.hypot(1, slope) * delta;
+        // Soft speed governor retains impacts and downhill momentum.
+        if (Math.abs(speed) > limit) speed *= Math.exp(-delta * 1.5);
+      }
       for (const part of mesh.children) {
         if (part.name === 'front-wheel') {
-          part.rotation.y = THREE.MathUtils.lerp(part.rotation.y, -steer * 0.4, 1 - Math.exp(-delta * 14));
+          part.rotation.y = THREE.MathUtils.lerp(part.rotation.y, -steeringAngle, 1 - Math.exp(-delta * 14));
         }
       }
       const x = position.x + (bumpX - Math.sin(yaw) * speed) * delta;
@@ -246,12 +274,17 @@ export function createCars(scene: THREE.Scene, world: World) {
         position.z = z;
         blockedTime = 0;
       }
-      const damping = Math.exp(-delta * 4.5);
-      bumpX *= damping;
-      bumpZ *= damping;
       const ground = world.groundHeight(position.x, position.z);
-      if (verticalSpeed === null) position.y = ground;
-      const tipped = alignToTerrain(mesh, yaw, verticalSpeed !== null);
+      if (verticalSpeed === null) {
+        const projected = position.y + groundVelocity * delta;
+        if (!collision && projected - ground > 0.18 && Math.abs(speed) > 2) {
+          verticalSpeed = Math.max(-12, Math.min(12, groundVelocity));
+        } else {
+          groundVelocity = delta > 0 ? (ground - position.y) / delta : 0;
+          position.y = ground;
+        }
+      }
+      const tipped = alignToTerrain(mesh, yaw, verticalSpeed !== null, delta);
       tippedTime = tipped && Math.abs(speed) < 0.7 && verticalSpeed === null ? tippedTime + delta : 0;
       if (!recoveryUsed && (tippedTime >= 1.5 || blockedTime >= 2)) {
         recoveryUsed = true;
@@ -264,8 +297,10 @@ export function createCars(scene: THREE.Scene, world: World) {
         if (position.y <= ground && verticalSpeed <= 0) {
           position.y = ground;
           verticalSpeed = null;
+          groundVelocity = 0;
+          speed *= 0.94;
         }
-        alignToTerrain(mesh, yaw, verticalSpeed !== null);
+        alignToTerrain(mesh, yaw, verticalSpeed !== null, delta);
       } else if (!collision && !tipped) {
         recoveryUsed = false;
       }
