@@ -1,0 +1,67 @@
+#app > canvas { display: block; touch-action: none; }
+
+#touch-controls {
+  position: fixed;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+@media (any-pointer: coarse) {
+  #touch-controls { display: block; }
+  #keyboard-controls { display: none; }
+}
+
+.touch-input #touch-controls { display: block; }
+.touch-input #keyboard-controls { display: none; }
+
+#joystick, #touch-controls button {
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  border: 1px solid #d7e8ff8c;
+  background: #162739df;
+  color: white;
+}
+
+#joystick {
+  position: absolute;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  left: max(18px, env(safe-area-inset-left));
+  width: clamp(86px, 24vmin, 116px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+#joystick span {
+  width: 35%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #c6e7ff;
+  pointer-events: none;
+}
+
+#touch-actions {
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  justify-items: end;
+  gap: 8px;
+}
+
+#touch-controls button {
+  min-width: 64px;
+  min-height: 46px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  font: 600 14px system-ui, sans-serif;
+}
+
+#touch-camera { grid-column: 1 / -1; }
+#touch-controls button[aria-pressed="true"] { background: #a8dbff; color: #0b1827; }

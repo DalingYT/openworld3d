@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>OpenWorld3D</title>
+    <style>
+      #apodo {
+        width: min(360px, calc(100vw - 72px));
+        padding: 24px;
+        border: 1px solid #496077;
+        border-radius: 12px;
+        background: #162739;
+        color: #fff;
+        font: 16px/1.5 system-ui, sans-serif;
+        color-scheme: dark;
+      }
+      #apodo::backdrop { background: #0b1827a8; }
+      #apodo form { display: grid; gap: 12px; }
+      #apodo input, #apodo button {
+        box-sizing: border-box;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font: inherit;
+      }
+      #apodo input { min-width: 0; border: 1px solid #8098b0; }
+      #apodo button { border: 0; background: #a8dbff; color: #0b1827; cursor: pointer; }
+      #apodo button:disabled { opacity: 0.65; cursor: wait; }
+      #apodo p { margin: 0; font-size: 14px; }
+      #apodo p:empty { display: none; }
+      #lan-status {
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        margin: 0;
+        padding: 8px 12px;
+        border-radius: 6px;
+        background: #162739;
+        color: #fff;
+        font: 13px system-ui, sans-serif;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="touch-controls" aria-label="Controles táctiles">
+      <div id="joystick" aria-label="Mover"><span></span></div>
+      <div id="touch-actions">
+        <button id="touch-camera" type="button" aria-pressed="false">3.ª persona</button>
+        <button id="touch-run" type="button" aria-pressed="false">Correr</button>
+        <button id="touch-jump" type="button">Saltar</button>
+      </div>
+    </div>
+    <dialog id="apodo" aria-labelledby="texto-apodo">
+      <form>
+        <label id="texto-apodo" for="nombre">Introduce tu apodo, se mostrará a los demás jugadores</label>
+        <input id="nombre" name="nombre" maxlength="24" required autofocus autocomplete="off" />
+        <button type="submit">Entrar</button>
+        <p role="status"></p>
+      </form>
+    </dialog>
+    <p id="lan-status" role="status" hidden></p>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
