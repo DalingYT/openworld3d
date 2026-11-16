@@ -4,11 +4,13 @@
   top: max(12px, env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right));
   width: max-content;
-  max-width: min(300px, calc(100vw - 24px));
+  max-width: min(calc(300px * var(--chat-scale, 1)), calc(100vw - 24px));
+  max-height: calc(100dvh - 210px);
+  overflow-y: auto;
   color: white;
   background: #162739ed;
   border-radius: 9px;
-  font: 14px/1.35 system-ui, sans-serif;
+  font: calc(14px * var(--chat-scale, 1))/1.35 system-ui, sans-serif;
   overflow-wrap: anywhere;
 }
 #game-chat summary {
@@ -32,8 +34,8 @@
 #game-chat button {
   border: 1px solid #5d758a;
   border-radius: 6px;
-  min-height: 36px;
-  padding: 4px 8px;
+  min-height: max(36px, calc(36px * var(--chat-scale, 1)));
+  padding: 0.3em 0.6em;
   color: white;
   background: #2c465f;
   cursor: pointer;

@@ -30,7 +30,7 @@
   position: absolute;
   bottom: max(18px, env(safe-area-inset-bottom));
   left: max(18px, env(safe-area-inset-left));
-  width: clamp(86px, 24vmin, 116px);
+  width: min(var(--joystick-size, 140px), 42vw, 42dvh);
   aspect-ratio: 1;
   border-radius: 50%;
   display: grid;

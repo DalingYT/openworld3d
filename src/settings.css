@@ -61,3 +61,7 @@ body #game-chat {
 #settings-panel button:disabled { opacity: 0.6; }
 :is(#admin-status, #moderation-status) { font-size: 14px; }
 :is(#admin-status, #moderation-status):empty { display: none; }
+
+#settings-panel { max-height: calc(100dvh - 28px); overflow-y: auto; }
+#settings-panel input[type="range"] { display: block; width: 100%; min-height: 32px; margin: 4px 0; }
+#settings-panel fieldset { min-width: 0; margin: 12px 0; border: 1px solid #496077; border-radius: 8px; }
