@@ -163,6 +163,16 @@ export function createCars(scene: THREE.Scene, world: World) {
       const current = ridden();
       for(const car of cars.values()) { car.mesh.visible=true; if(enabled && car===current)car.label.visible=false; }
     },
+    seatAvatar(id: string, avatar: THREE.Group) {
+      const car=[...cars.values()].find(c=>c.state.driver===id || c.state.passengers?.includes(id));
+      if(!car)return false;
+      const seat=car.state.driver===id ? 0 : 1+(car.state.passengers?.indexOf(id) ?? 0);
+      const boat=['boat','boat4'].includes(car.state.kind ?? '');
+      avatar.scale.set(.55,.4,.55);
+      avatar.position.set(seat%2===0?-.46:.46,boat?.5:.98,seat<2?-.15:.75).applyEuler(car.mesh.rotation).add(car.mesh.position);
+      avatar.rotation.copy(car.mesh.rotation);
+      return true;
+    },
     firstPersonPosition(out: THREE.Vector3) {
       const car=ridden();if(!car)return false;
       const seat=car.state.driver===driverId ? 0 : 1+(car.state.passengers?.indexOf(driverId) ?? 0);
@@ -200,7 +210,7 @@ export function createCars(scene: THREE.Scene, world: World) {
           const mesh = (state.kind === 'boat' || state.kind === 'boat4') ? makeBoat(state.color) : makeCar(state.color, state.kind === 'taxi');
           const label = makeNameTag((state.kind === 'taxi' || state.kind === 'boat4') ? `${state.kind === 'boat4' ? 'Barco' : 'Taxi'} ${state.name} · ${Number(Boolean(state.driver)) + (state.passengers?.filter(Boolean).length ?? 0)}/4` : state.name);
           mesh.position.set(state.x, (state.kind === 'boat' || state.kind === 'boat4') ? 0 : world.groundHeight(state.x, state.z), state.z);
-          if((state.kind !== 'boat' && state.kind !== 'boat4')) alignToTerrain(mesh, state.yaw);
+          if((state.kind !== 'boat' && state.kind !== 'boat4')) alignToTerrain(mesh, state.yaw); else mesh.rotation.set(0,state.yaw,0);
           mesh.add(label);
           scene.add(mesh);
           car = { mesh, label, state, lift: 0, targetLift: 0 };
@@ -221,7 +231,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         if (hit) sfx('crash');
         if (tookWheel || hit) {
           car.mesh.position.set(state.x, (state.kind === 'boat' || state.kind === 'boat4') ? 0 : state.y ?? world.groundHeight(state.x, state.z), state.z);
-          if((state.kind !== 'boat' && state.kind !== 'boat4')) alignToTerrain(car.mesh, state.yaw);
+          if((state.kind !== 'boat' && state.kind !== 'boat4')) alignToTerrain(car.mesh, state.yaw); else car.mesh.rotation.set(0,state.yaw,0);
           const forwardX = -Math.sin(state.yaw);
           const forwardZ = -Math.cos(state.yaw);
           speed = state.vx * forwardX + state.vz * forwardZ;

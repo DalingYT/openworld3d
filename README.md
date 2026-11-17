@@ -35,3 +35,5 @@ Elige **Barco** en el selector y acércate a la orilla para sacarlo en agua libr
 El **Barco · 4 plazas** admite conductor y tres pasajeros. Pulsa **T** o el botón de cámara para conducir en primera o tercera persona. **Muerte** solo aparece para administradores. Tres mensajes filtrados en dos minutos provocan un veto temporal de diez minutos. Las nuevas versiones muestran un aviso para actualizar cuando tú decidas.
 
 En primera persona puedes ver el capó, el tablero y el volante. Abre **Ocupantes** para ver quién viaja contigo; el conductor puede bajar pasajeros. Los apodos también pasan por el filtro al entrar o renombrarse.
+
+Los ocupantes se ven sentados en sus asientos, con sus colores y sombreros, tanto en carros y taxis como en barcos. En primera persona se oculta solo tu propio personaje para no tapar la vista.

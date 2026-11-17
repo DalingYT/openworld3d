@@ -90,6 +90,7 @@ export function createLan(
     try { return (await fetch(serverUrl + '/lan/move', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,social})})).status; } catch { return 0; }
   }, spawn);
   const shop = createHatShop(player, setColor);
+  const seatedSelf = makeAvatar(0x3366ff); seatedSelf.visible=false; scene.add(seatedSelf);
   let clockStart = performance.now();
   const settings = createSettings(async data => {
     if (!token) return 404;
@@ -162,7 +163,7 @@ export function createLan(
       other.yaw = state.yaw;
       equipHat(other.avatar, state.hat);
       other.label.position.y = state.hat ? 3.02 : 2.45;
-      other.avatar.visible = !state.car;
+      other.avatar.visible = true;
     }
   }
 
@@ -311,10 +312,19 @@ export function createLan(
       }
     },
     worldTime(time: number) { return time - clockStart; },
-    update(time: number, delta: number) {
+    update(time: number, delta: number, thirdPerson = false) {
       chat.update(delta);
       const mix = 1 - Math.exp(-delta * 16);
-      for (const { avatar, target, label, yaw } of others.values()) {
+      seatedSelf.visible = thirdPerson && cars.seatAvatar(playerId,seatedSelf);
+      if(seatedSelf.visible) {
+        (seatedSelf.getObjectByName('body') as THREE.Mesh).material=(player.getObjectByName('body') as THREE.Mesh).material;
+        equipHat(seatedSelf,shop.selected);
+      }
+      for (const [id,{ avatar, target, label, yaw }] of others) {
+        if(cars.seatAvatar(id,avatar)) {
+          avatar.visible=true;label.visible=avatar.position.distanceToSquared(player.position)<=55**2;continue;
+        }
+        avatar.scale.set(1,1,1);avatar.rotation.x=avatar.rotation.z=0;
         avatar.position.lerp(target, mix);
         const difference = yaw - avatar.rotation.y;
         avatar.rotation.y += Math.atan2(Math.sin(difference), Math.cos(difference)) * mix;

@@ -434,7 +434,7 @@ function animate(time: number) {
     camera.lookAt(target.copy(eyes).add(view));
   }
 
-  lan.update(time, delta);
+  lan.update(time, delta, thirdPerson);
   if (!lan.entering) {
     const nextZone = zoneName(position.x, position.z, floor);
     if (nextZone !== candidateZone) { candidateZone = nextZone; zoneSince = time; }
