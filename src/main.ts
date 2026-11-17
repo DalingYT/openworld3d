@@ -1,3 +1,4 @@
+import { createJumpInput } from './jump-input';
 import { createDrivingHud } from './driving-hud';
 import { hitsHouse } from './life';
 import { setupTextures } from './textures';
@@ -128,6 +129,10 @@ let grounded = true;
 let jumpsUsed = 0;
 const drivingHud = createDrivingHud();
 let jumpQueued = false;
+const acceptJump = createJumpInput();
+function requestJump(source: 'keyboard' | 'gamepad' | 'touch') {
+  if (acceptJump(source)) jumpQueued = true;
+}
 const keys = new Set<string>();
 let flyUp = false, flyDown = false, flyPulse = 0;
 const flyControls = document.createElement('span'); flyControls.hidden = true;
@@ -213,12 +218,12 @@ const touch = setupTouch(canvas, {
   look: (dx, dy) => {
     if (!lan.entering) turn(dx, dy, Math.PI / Math.min(innerWidth, innerHeight));
   },
-  jump: () => { if (!lan.entering) jumpQueued = true; },
+  jump: () => { if (!lan.entering) requestJump('touch'); },
   camera: () => toggleCamera(false)
 });
 
 const gamepad = createGamepad({
-  jump: () => { jumpQueued = true; },
+  jump: () => { requestJump('gamepad'); },
   camera: () => toggleCamera(false),
   ride: () => { void toggleRide(); }
 });
@@ -240,7 +245,7 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'Space') {
     if (event.target instanceof HTMLElement && event.target.closest('#game-chat')) return;
     event.preventDefault();
-    if (!event.repeat) jumpQueued = true;
+    if (!event.repeat) requestJump('keyboard');
   }
   if (event.code === 'KeyT' && !event.repeat) {
     toggleCamera(lastCanvasPointer === 'mouse');
