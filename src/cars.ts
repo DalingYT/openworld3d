@@ -81,14 +81,10 @@ export function createCars(scene: THREE.Scene, world: World) {
   let speed = 0;
   let lastDriven: string | null = null;
   let verticalSpeed: number | null = null;
-  let blockedTime = 0;
-  let tippedTime = 0;
-  let recoveryUsed = false;
   let bumpX = 0;
   let bumpZ = 0;
   let steeringAngle = 0;
   let pitchRate = 0, rollRate = 0;
-  let airWasActive = false, pitchArmed = false, rollArmed = false;
   let groundVelocity = 0;
 
   function driven() {
@@ -219,10 +215,6 @@ export function createCars(scene: THREE.Scene, world: World) {
           groundVelocity = 0;
           steeringAngle = 0;
           pitchRate = rollRate = 0;
-          airWasActive = false;
-          blockedTime = 0;
-          tippedTime = 0;
-          recoveryUsed = false;
           lastDriven = null;
           const side = player.rotation.y + Math.PI / 2;
           for (const sign of [1, -1]) {
@@ -247,7 +239,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       const oldVZ = bumpZ - Math.cos(oldYaw) * speed;
       steeringAngle = THREE.MathUtils.lerp(steeringAngle, steer * 0.48, 1 - Math.exp(-delta * 7));
       const turning = THREE.MathUtils.clamp(speed * Math.tan(steeringAngle) / 2.4, -1.7, 1.7);
-      const yaw = oldYaw - turning * delta * (verticalSpeed === null ? 1 : 0.18);
+      const yaw = oldYaw - (verticalSpeed === null ? turning : 0) * delta;
       const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
       const rx = Math.cos(yaw), rz = -Math.sin(yaw);
       // Carry world momentum through a turn; tires gradually remove sideways slip.
@@ -289,11 +281,9 @@ export function createCars(scene: THREE.Scene, world: World) {
         speed = 0;
         bumpX = 0;
         bumpZ = 0;
-        blockedTime = pedal ? blockedTime + delta : 0;
       } else {
         position.x = x;
         position.z = z;
-        blockedTime = 0;
       }
       const ground = world.groundHeight(position.x, position.z);
       if (verticalSpeed === null) {
@@ -305,24 +295,18 @@ export function createCars(scene: THREE.Scene, world: World) {
           position.y = ground;
         }
       }
-      const tipped = verticalSpeed === null && alignToTerrain(mesh, yaw, false, delta * 0.55);
-      tippedTime = tipped && Math.abs(speed) < 0.7 && verticalSpeed === null ? tippedTime + delta : 0;
-      if (!recoveryUsed && (tippedTime >= 1.5 || blockedTime >= 2)) {
-        recoveryUsed = true;
-        verticalSpeed = RECOVERY_SPEED;
-        speed = 0;
+      if (verticalSpeed === null) {
+        const oldPitch = rotation.x, oldRoll = rotation.z;
+        alignToTerrain(mesh, yaw, false, delta * 0.55);
+        pitchRate = delta > 0 ? THREE.MathUtils.clamp((rotation.x - oldPitch) / delta, -0.8, 0.8) : 0;
+        rollRate = delta > 0 ? THREE.MathUtils.clamp((rotation.z - oldRoll) / delta, -0.6, 0.6) : 0;
       }
       if (verticalSpeed !== null) {
-        // A held accelerator/steering input must be released before it controls an air trick.
-        if (!airWasActive) {
-          pitchArmed = Math.abs(pedal) < 0.15;
-          rollArmed = Math.abs(steer) < 0.15;
-          airWasActive = true;
-        }
-        if (Math.abs(pedal) < 0.15) pitchArmed = true;
-        if (Math.abs(steer) < 0.15) rollArmed = true;
-        pitchRate = THREE.MathUtils.clamp((pitchRate + (pitchArmed ? pedal : 0) * 3.5 * delta) * Math.exp(-delta * 0.65), -3.2, 3.2);
-        rollRate = THREE.MathUtils.clamp((rollRate - (rollArmed ? steer : 0) * 3.5 * delta) * Math.exp(-delta * 0.65), -3.2, 3.2);
+        // The body follows the flight arc gently, retaining the slope's angular momentum.
+        const flightPitch = THREE.MathUtils.clamp(Math.atan2(verticalSpeed, Math.max(8, Math.hypot(speed, bumpX, bumpZ))), -0.5, 0.5);
+        const pitchError = Math.atan2(Math.sin(flightPitch - rotation.x), Math.cos(flightPitch - rotation.x));
+        pitchRate = THREE.MathUtils.clamp((pitchRate + pitchError * 3 * delta) * Math.exp(-delta * 1.8), -1, 1);
+        rollRate *= Math.exp(-delta * 1.4);
         rotation.set(rotation.x + pitchRate * delta, yaw, rotation.z + rollRate * delta, 'YXZ');
         position.y += verticalSpeed * delta - 0.5 * RECOVERY_GRAVITY * delta * delta;
         verticalSpeed -= RECOVERY_GRAVITY * delta;
@@ -332,7 +316,6 @@ export function createCars(scene: THREE.Scene, world: World) {
           sfx(ground < 0 ? 'splash' : 'land');
           position.y = contactHeight;
           verticalSpeed = null;
-          airWasActive = false;
           groundVelocity = 0;
           pitchRate = rollRate = 0;
           rotation.x = Math.atan2(Math.sin(rotation.x), Math.cos(rotation.x));
@@ -340,8 +323,6 @@ export function createCars(scene: THREE.Scene, world: World) {
           speed *= 0.85;
         }
         if (verticalSpeed === null) alignToTerrain(mesh, yaw, false, delta);
-      } else if (!collision && !tipped) {
-        recoveryUsed = false;
       }
       if (verticalSpeed === null) position.y = Math.max(position.y, supportHeight(mesh));
       player.position.copy(position);

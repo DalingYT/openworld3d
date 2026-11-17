@@ -21,4 +21,4 @@ En **Configuración → Audio** puedes ajustar la música y los efectos por sepa
 
 En **Configuración** puedes desactivar las texturas. Al conectar un mando, pulsa un botón para que el navegador lo detecte y elige **Xbox**, **Nintendo**, **PlayStation** o **Genérico**. El stick izquierdo mueve, el derecho gira la cámara y el menú muestra los botones correspondientes. Si el navegador no reconoce el mapa del mando, sigue la configuración guiada de botones y sticks.
 
-Busca **Gubo Tiendini** cerca de la entrada de la ciudad para abrir la tienda de sombreros y colores. En el aire, usa **W/S** para inclinar el carro y **A/D** para girarlo de lado (también con el joystick o el stick izquierdo). Para iniciar un giro aéreo, suelta la dirección que llevabas pulsada al despegar y vuelve a pulsarla. El giro conserva inercia al soltar.
+Busca **Gubo Tiendini** cerca de la entrada de la ciudad para abrir la tienda de sombreros y colores. Los carros se inclinan automáticamente siguiendo el impulso de la pendiente y la trayectoria del salto. No hay piruetas por teclas ni saltos automáticos para enderezarse.
