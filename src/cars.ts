@@ -159,9 +159,9 @@ export function createCars(scene: THREE.Scene, world: World) {
           alignToTerrain(car.mesh, state.yaw);
           const forwardX = -Math.sin(state.yaw);
           const forwardZ = -Math.cos(state.yaw);
-          speed = hit ? state.vx * forwardX + state.vz * forwardZ : 0;
-          bumpX = hit ? state.vx - forwardX * speed : 0;
-          bumpZ = hit ? state.vz - forwardZ * speed : 0;
+          speed = state.vx * forwardX + state.vz * forwardZ;
+          bumpX = state.vx - forwardX * speed;
+          bumpZ = state.vz - forwardZ * speed;
         }
         car.state = state;
         car.targetLift = state.y === undefined ? 0

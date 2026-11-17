@@ -79,6 +79,13 @@ function velocityOf(car, now) {
   return { vx: 0, vz: 0 };
 }
 
+export function releaseCar(car, now = performance.now()) {
+  const velocity = velocityOf(car, now);
+  car.vx = velocity.vx;
+  car.vz = velocity.vz;
+  car.driver = null;
+}
+
 // Stop at the first point of contact, then exchange momentum along its normal.
 export function moveCar(cars, car, { x, y, z, yaw }, now = performance.now(), stepSeconds) {
   const dx = x - car.x;
@@ -96,7 +103,7 @@ export function moveCar(cars, car, { x, y, z, yaw }, now = performance.now(), st
     if (result && (!hit || result.time < hit.time)) hit = { ...result, other };
   }
   if (!hit) {
-    Object.assign(car, { x, y, z, yaw });
+    Object.assign(car, { x, y, z, yaw, vx, vz });
     updateMotion(car, vx, vz, now);
     return;
   }
@@ -131,7 +138,8 @@ export function coastParkedCars(cars, dt) {
     if (outsideBuildings(x, z, car.yaw)) {
       delete car.y;
       moveCar(cars, car, { x, z, yaw: car.yaw }, performance.now(), dt);
-      const damping = Math.exp(-dt * 2.5);
+      const speed = Math.hypot(car.vx, car.vz);
+      const damping = speed > 0 ? Math.max(0, 1 - (1.1 + 0.012 * speed * speed) * dt / speed) : 0;
       car.vx *= damping;
       car.vz *= damping;
       moved = true;

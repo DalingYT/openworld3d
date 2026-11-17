@@ -1,6 +1,6 @@
 import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import phrases from '../shared/phrases.json' with { type: 'json' };
-import { carSpaceFree, moveCar, coastParkedCars } from './car-physics.mjs';
+import { carSpaceFree, moveCar, coastParkedCars, releaseCar } from './car-physics.mjs';
 import hats from '../shared/hats.json' with { type: 'json' };
 
 import colors from '../shared/colors.json' with { type: 'json' };
@@ -68,9 +68,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
   function leaveCar(player) {
     if (!player.car) return;
     const car = cars.get(player.car);
-    car.driver = null;
-    car.vx = 0;
-    car.vz = 0;
+    releaseCar(car);
     delete car.y;
     delete car.pitch;
     delete car.roll;
