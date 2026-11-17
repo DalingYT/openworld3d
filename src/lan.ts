@@ -1,3 +1,4 @@
+import { createVehicleRoster } from './vehicle-roster';
 import { createAnnouncements } from './announcements';
 import { createLife } from './life';
 import type { World } from './world';
@@ -75,6 +76,10 @@ export function createLan(
   let sending = false;
   let playerId = '';
   let carsAvailable = false;
+  const vehicleRoster = createVehicleRoster(async targetId => {
+    if(!token)return false;
+    try {return (await fetch(serverUrl+'/lan/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,ride:'eject',targetId})})).ok;}catch{return false;}
+  });
   let flying = false;
   let isAdmin = false;
   let clientId: string = Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('');
@@ -123,6 +128,7 @@ export function createLan(
 
   function updatePlayers(states: PlayerState[]) {
     showRoster(states);
+    vehicleRoster.setPlayers(states);
     life.setPlayers(states.map(({id,name})=>({id,name})));
     settings.setPlayers(states.map(({ id, name, freeChat }) => ({ id, name, freeChat })));
     const ids = new Set(states.map(state => state.id));
@@ -185,6 +191,7 @@ export function createLan(
       shop.setConnected(true);
       settings.setConnected(true, ready.moderation);
       playerId = ready.id;
+      vehicleRoster.setSelf(ready.id,name);
       flying = false;
       isAdmin = false;
       life.setConnected(ready.id, ready.sessionFeatures === true);
@@ -205,10 +212,11 @@ export function createLan(
       if (token) updatePlayers(JSON.parse(event.data) as PlayerState[]);
     });
     connection.addEventListener('cars', event => {
-      if (token && carsAvailable) cars.receive(JSON.parse(event.data) as CarState[]);
+      if (token && carsAvailable) {const data=JSON.parse(event.data) as CarState[];cars.receive(data);vehicleRoster.setCars(data);}
     });
     connection.addEventListener('renamed', event => {
       input.value = (JSON.parse(event.data) as { name: string }).name;
+      vehicleRoster.setSelf(playerId,input.value);
     });
     connection.addEventListener('kicked', event => {
       const removal = event.data ? JSON.parse(event.data) : {};
@@ -223,12 +231,13 @@ export function createLan(
       carsAvailable = false;
       cars.setDriver('');
       cars.receive([]);
+      vehicleRoster.setCars([]);
       joined = false;
       settings.setConnected(false);
       chat.setConnected(false);
       updatePlayers([]);
       button.disabled = false;
-      status.textContent = removal.until ? 'Veto temporal por mensajes filtrados. Podrás volver a las ' + new Date(removal.until).toLocaleTimeString() + '.' : 'Un administrador te expulsó de la partida.';
+      status.textContent = removal.reason ?? (removal.until ? 'Veto temporal por mensajes filtrados. Podrás volver a las ' + new Date(removal.until).toLocaleTimeString() + '.' : 'Un administrador te expulsó de la partida.');
       dialog.showModal();
     });
     connection.addEventListener('announcement', event => {
@@ -260,6 +269,7 @@ export function createLan(
       carsAvailable = false;
       cars.setDriver('');
       cars.receive([]);
+      vehicleRoster.setCars([]);
       settings.setConnected(false);
       chat.setConnected(false);
       updatePlayers([]);

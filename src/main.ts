@@ -410,6 +410,7 @@ function animate(time: number) {
   eyes.copy(position);
   eyes.y += driving ? 1.55 : 1.65;
   cars.setFirstPerson(!thirdPerson);
+  if (!thirdPerson && driving) cars.firstPersonPosition(eyes);
   view.set(-sinYaw * Math.cos(pitch), Math.sin(pitch), -cosYaw * Math.cos(pitch));
 
   if (thirdPerson) {

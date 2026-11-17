@@ -33,3 +33,5 @@ En el selector junto a **Sacar carro**, elige **Taxi · 4 plazas** para sacar un
 Elige **Barco** en el selector y acércate a la orilla para sacarlo en agua libre. Se maneja con los mismos controles y se detiene ante tierra firme. El modo **Muerte** añade más velocidad y nitro a carros y taxis. El chat libre y los anuncios tienen un filtro de palabras del servidor; los mensajes detectados aparecen como «[Mensaje filtrado]».
 
 El **Barco · 4 plazas** admite conductor y tres pasajeros. Pulsa **T** o el botón de cámara para conducir en primera o tercera persona. **Muerte** solo aparece para administradores. Tres mensajes filtrados en dos minutos provocan un veto temporal de diez minutos. Las nuevas versiones muestran un aviso para actualizar cuando tú decidas.
+
+En primera persona puedes ver el capó, el tablero y el volante. Abre **Ocupantes** para ver quién viaja contigo; el conductor puede bajar pasajeros. Los apodos también pasan por el filtro al entrar o renombrarse.

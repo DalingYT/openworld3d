@@ -19,7 +19,7 @@ const box = new THREE.BoxGeometry(1, 1, 1);
 const wheel = new THREE.CylinderGeometry(0.42, 0.42, 0.34, 8);
 wheel.rotateZ(Math.PI / 2);
 const rubber = new THREE.MeshLambertMaterial({ color: 0x22242a });
-const glass = new THREE.MeshLambertMaterial({ color: 0x80aabb });
+const glass = new THREE.MeshLambertMaterial({ color: 0x80aabb, transparent:true, opacity:.28, depthWrite:false });
 const headlight = new THREE.MeshBasicMaterial({ color: 0xffecaa });
 const taillight = new THREE.MeshBasicMaterial({ color: 0xd32835 });
 const bodyMaterials = new Map<number, THREE.MeshLambertMaterial>();
@@ -44,8 +44,15 @@ function makeCar(color: number, taxi = false) {
     car.add(mesh);
   }
   piece(body, 0, 0.66, 0, 2.12, 0.63, 4.02);
-  piece(glass, 0, 1.12, 0.27, 1.76, 0.47, 1.9);
-  piece(body, 0, 1.39, 0.27, 1.84, 0.13, 2.03);
+  piece(glass,0,1.48,-.72,1.76,.85,.04);
+  piece(glass,0,1.48,1.22,1.76,.85,.04);
+  piece(glass,-.88,1.48,.27,.04,.85,1.9);
+  piece(glass,.88,1.48,.27,.04,.85,1.9);
+  piece(body,0,1.95,.27,1.84,.13,2.03);
+  piece(rubber,0,1.04,-.62,1.7,.16,.36);
+  for(const x of [-.46,.46])for(const z of [.15,1])piece(rubber,x,1.12,z,.62,.55,.18);
+  const steeringWheel=new THREE.Mesh(new THREE.TorusGeometry(.19,.035,6,12),rubber);
+  steeringWheel.position.set(-.46,1.25,-.48);steeringWheel.rotation.x=-.35;car.add(steeringWheel);
   for (const side of [-1, 1]) {
     piece(headlight, 0.72 * side, 0.72, -2.025, 0.44, 0.2, 0.06);
     piece(taillight, 0.72 * side, 0.72, 2.025, 0.44, 0.2, 0.06);
@@ -57,8 +64,8 @@ function makeCar(color: number, taxi = false) {
     }
   }
   if (taxi) {
-    piece(headlight, 0, 1.62, 0.27, 1.1, 0.35, 0.45);
-    const sign = makeNameTag('TAXI'); sign.position.set(0, 2.05, 0.27); sign.scale.set(1.5, 0.3, 1); car.add(sign); car.userData.taxiSign = sign;
+    piece(headlight, 0, 2.18, 0.27, 1.1, 0.35, 0.45);
+    const sign = makeNameTag('TAXI'); sign.position.set(0, 2.6, 0.27); sign.scale.set(1.5, 0.3, 1); car.add(sign); car.userData.taxiSign = sign;
     for (const side of [-1,1]) piece(rubber,side*1.065,.76,0,.03,.15,3.5);
   }
   return car;
@@ -152,7 +159,17 @@ export function createCars(scene: THREE.Scene, world: World) {
       return null;
     },
     get speedMode() { return activeMode; },
-    setFirstPerson(enabled: boolean) { const current = ridden(); for (const car of cars.values()) car.mesh.visible = !(enabled && car === current); },
+    setFirstPerson(enabled: boolean) {
+      const current = ridden();
+      for(const car of cars.values()) { car.mesh.visible=true; if(enabled && car===current)car.label.visible=false; }
+    },
+    firstPersonPosition(out: THREE.Vector3) {
+      const car=ridden();if(!car)return false;
+      const seat=car.state.driver===driverId ? 0 : 1+(car.state.passengers?.indexOf(driverId) ?? 0);
+      const boat=['boat','boat4'].includes(car.state.kind ?? '');
+      out.set(seat%2===0?-.46:.46,boat?1.45:1.55,seat<2?-.15:.75).applyEuler(car.mesh.rotation).add(car.mesh.position);
+      return true;
+    },
     jump() {
       if (!driven() || ['boat','boat4'].includes(driven()?.state.kind ?? '') || wasFlying || jumpsUsed >= 2) return;
       jumpsUsed = verticalSpeed === null ? 1 : 2;

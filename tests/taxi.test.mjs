@@ -20,6 +20,9 @@ try {
  assert.equal(await send(4,{ride:car.id}),409);
  car=(await streams[0].read('cars',c=>c[0]?.passengers.filter(Boolean).length===3))[0];
  assert.equal(await send(1,{x:9999,y:100,z:9999,yaw:0,drivingCar:car.id,carImpact:car.impact}),204);
+ assert.equal(await send(1,{ride:'eject',targetId:ids[2].id}),403);
+ assert.equal(await send(4,{ride:'eject',targetId:ids[2].id}),403);
+ assert.equal(await send(0,{ride:'eject',targetId:ids[1].id}),204);
  assert.equal(await send(1,{ride:'exit'}),204);
  let after=(await streams[0].read('cars',c=>c[0]?.passengers.filter(Boolean).length===2))[0];
  assert.equal(after.driver,ids[0].id);assert.equal(after.x,car.x);assert.equal(after.z,car.z);

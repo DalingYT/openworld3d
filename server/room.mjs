@@ -1,3 +1,4 @@
+import { filterChat } from './chat-filter.mjs';
 import { createChatModeration } from './chat-moderation.mjs';
 import { createSessionFeatures } from './session-features.mjs';
 import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -143,6 +144,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       response.writeHead(400).end();
       return;
     }
+    if(filterChat(name)!==name){response.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store'});send(response,'kicked',{reason:'Ese apodo no está permitido. Elige otro.'});response.end();return;}
     if (players.size >= colors.length) {
       response.writeHead(503).end();
       return;
@@ -216,12 +218,21 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     };
   }
 
-  const move = withPlayer((player, { x, y, z, yaw, phrase, text, ride, drivingCar, carImpact, hat, color, pitch, roll, social, vehicleType, boatSpawn, speedMode }, response) => {
+  const move = withPlayer((player, { x, y, z, yaw, phrase, text, ride, drivingCar, carImpact, hat, color, pitch, roll, social, vehicleType, boatSpawn, speedMode, targetId }, response) => {
     if (social !== undefined) return features.action(player, social, response);
     if (ride === 'spawn') {
       if (color !== undefined && !colors.includes(color)) return response.writeHead(400).end();
       if (vehicleType !== undefined && !['car','taxi','boat','boat4'].includes(vehicleType)) return response.writeHead(400).end();
       return spawnCar(player, response, color, vehicleType, boatSpawn);
+    }
+    if (ride === 'eject') {
+      const car=cars.get(player.car);
+      if(!car || car.driver!==player.id)return response.writeHead(403).end();
+      const target=[...players.values()].find(p=>p.id===targetId && p.car===car.id && car.passengers?.includes(p.id));
+      if(!target)return response.writeHead(404).end();
+      leaveCar(target);
+      send(target.response,'announcement',{name:'Vehículo',text:'El conductor te ha bajado del vehículo.'});
+      return response.writeHead(204).end();
     }
     if (ride === 'exit') {
       leaveCar(player);
@@ -339,7 +350,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       dirty = true;
     } else if (action === 'rename') {
       const nickname = typeof name === 'string' ? name.trim() : '';
-      if (!nickname || nickname.length > 24 || /[\p{Cc}\p{Cf}]/u.test(nickname)) {
+      if (!nickname || filterChat(nickname)!==nickname || nickname.length > 24 || /[\p{Cc}\p{Cf}]/u.test(nickname)) {
         return response.writeHead(400).end();
       }
       target.name = nickname;
