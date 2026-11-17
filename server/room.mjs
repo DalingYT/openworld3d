@@ -1,3 +1,4 @@
+import { createSessionFeatures } from './session-features.mjs';
 import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import phrases from '../shared/phrases.json' with { type: 'json' };
 import { carSpaceFree, moveCar, coastParkedCars, releaseCar } from './car-physics.mjs';
@@ -26,7 +27,9 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     response.write('event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n');
   }
 
+  const features = createSessionFeatures(players, send);
   const timer = setInterval(() => {
+    features.tick();
     const ping = Date.now() - lastPing >= 10_000;
     if (dirty) {
       const snapshot = [...players.values()].filter(player => player.state).map(
@@ -60,7 +63,9 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       cars.delete(player.ownedCar);
       carsDirty = true;
     }
+    features.remove(player);
     players.delete(token);
+    features.broadcast();
     slots.delete(slot);
     dirty = true;
   }
@@ -133,6 +138,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     const freeColors = colors.filter(color => !usedColors.has(color));
     const color = freeColors[randomInt(freeColors.length)];
     players.set(token, { id, name, color, response, slot, state: null, car: null, hat: null });
+    features.start(players.get(token));
     response.on('close', () => disconnect(token, slot));
 
     response.writeHead(200, {
@@ -140,9 +146,10 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       'Cache-Control': 'no-cache, no-transform',
       'X-Accel-Buffering': 'no'
     });
-    send(response, 'ready', { id, token, color, freeChat: false, moderation: true, spawnCars: true, worldTime: Date.now() - startTime,
+    send(response, 'ready', { id, token, color, sessionFeatures: true, freeChat: false, moderation: true, spawnCars: true, worldTime: Date.now() - startTime,
       x: [0, 3, -3, 6][slot % 4], z: -35 - Math.floor(slot / 4) * 3 });
     send(response, 'cars', [...cars.values()]);
+    features.broadcast();
     dirty = true;
   }
 
@@ -179,7 +186,8 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     };
   }
 
-  const move = withPlayer((player, { x, y, z, yaw, phrase, text, ride, drivingCar, carImpact, hat, color, pitch, roll }, response) => {
+  const move = withPlayer((player, { x, y, z, yaw, phrase, text, ride, drivingCar, carImpact, hat, color, pitch, roll, social }, response) => {
+    if (social !== undefined) return features.action(player, social, response);
     if (ride === 'spawn') {
       if (color !== undefined && !colors.includes(color)) return response.writeHead(400).end();
       return spawnCar(player, response, color);
@@ -260,6 +268,14 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
 
   function moderate(player, { action, targetId, name }, response) {
     if (!player.admin) return response.writeHead(403).end();
+    if (action === 'fly' || action === 'unfly') {
+      const target = targetId === 'me' ? player : [...players.values()].find(q => q.id === targetId);
+      if (!target) return response.writeHead(404).end();
+      target.flying = action === 'fly';
+      send(target.response, 'permissions', {freeChat:Boolean(target.admin || target.freeChat), flying:target.flying});
+      features.broadcast();
+      return response.writeHead(204).end();
+    }
     if (!['rename', 'kick', 'chat_allow', 'chat_block'].includes(action)) return response.writeHead(400).end();
     const targetEntry = [...players].find(([, target]) => target.id === targetId && target !== player);
     if (!targetEntry) return response.writeHead(404).end();
@@ -268,7 +284,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     if (action === 'chat_allow' || action === 'chat_block') {
       if (target.admin) return response.writeHead(409).end();
       target.freeChat = action === 'chat_allow';
-      send(target.response, 'permissions', { freeChat: target.freeChat });
+      send(target.response, 'permissions', { freeChat: target.freeChat, flying:Boolean(target.flying) });
       dirty = true;
     } else if (action === 'rename') {
       const nickname = typeof name === 'string' ? name.trim() : '';
@@ -281,6 +297,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
         carsDirty = true;
       }
       send(target.response, 'renamed', { name: nickname });
+      features.broadcast();
       dirty = true;
     } else {
       target.response.write('id: kicked\n');
@@ -313,7 +330,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     }
     player.admin = true;
     dirty = true;
-    send(player.response, 'permissions', { freeChat: true });
+    send(player.response, 'permissions', { freeChat: true, flying:Boolean(player.flying) });
     response.writeHead(204).end();
   });
 

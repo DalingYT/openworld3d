@@ -1,3 +1,4 @@
+import { hitsHouse } from './life';
 import { setupTextures } from './textures';
 import { createGamepad } from './gamepad';
 import { setupAudio, updateAudio, sfx } from './audio';
@@ -107,7 +108,7 @@ spawn(0, -35);
 const lan = createLan(scene, player, makeAvatar, spawn, color => {
   const body = player.getObjectByName('body') as THREE.Mesh;
   body.material = avatarMaterial(color);
-}, cars);
+}, cars, world);
 
 const MOVE_SPEED = 5;
 const RUN_MULTIPLIER = 1.7;
@@ -125,6 +126,17 @@ let verticalVelocity = 0;
 let grounded = true;
 let jumpQueued = false;
 const keys = new Set<string>();
+let flyUp = false, flyDown = false, flyPulse = 0;
+const flyControls = document.createElement('span'); flyControls.hidden = true;
+for (const [label, up] of [['Volar ↑', true], ['Bajar ↓', false]] as const) {
+  const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.style.touchAction = 'none';
+  button.addEventListener('pointerdown', e => { e.preventDefault(); button.setPointerCapture(e.pointerId); if(up)flyUp=true;else flyDown=true; });
+  for(const event of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(event,()=>{if(up)flyUp=false;else flyDown=false;});
+  flyControls.append(button);
+}
+document.querySelector('#car-controls')!.append(flyControls);
+window.addEventListener('blur',()=>{flyUp=flyDown=false;});
+const blockedAt = (x:number,z:number,radius:number) => (lan.flying && player.position.y > world.groundHeight(x,z)+18) ? false : hitsBuilding(x,z,radius) || hitsHouse(x,z,radius,false,player.position.x,player.position.z);
 const cameraButton = document.querySelector<HTMLButtonElement>('#touch-camera')!;
 const carAction = document.querySelector<HTMLButtonElement>('#car-action')!;
 const carActionText = carAction.querySelector('b')!;
@@ -312,8 +324,12 @@ function animate(time: number) {
   const sinYaw = Math.sin(yaw);
   const cosYaw = Math.cos(yaw);
   direction.set(cosYaw * moveX - sinYaw * moveZ, 0, -sinYaw * moveX - cosYaw * moveZ);
-  if (!(lan.settingsOpen || arcade.open || gamepad.open) && !lan.entering && jumpQueued && cars.driving) cars.jump();
-  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveX, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveZ, delta);
+  if (!(lan.settingsOpen || arcade.open || gamepad.open) && !lan.entering && jumpQueued && cars.driving && !lan.flying) cars.jump();
+  flyControls.hidden = !lan.flying || lan.entering;
+  if (lan.flying && jumpQueued) flyPulse = 0.25;
+  flyPulse = Math.max(0, flyPulse - delta);
+  const verticalInput = (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : Number(flyUp || flyPulse > 0 || keys.has('Space')) - Number(flyDown || keys.has('ControlLeft') || keys.has('ControlRight'));
+  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveX, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveZ, delta, lan.flying, verticalInput);
   const driving = carYaw !== null;
   if (driving) {
     verticalVelocity = 0;
@@ -329,10 +345,10 @@ function animate(time: number) {
   if (!driving && direction.lengthSq() > 0) {
     direction.clampLength(0, 1);
     const running = touch.running || gamepad.input.running || keys.has('ShiftLeft') || keys.has('ShiftRight');
-    const distance = MOVE_SPEED * (running ? RUN_MULTIPLIER : 1) * waterSpeed(position.y, 0.46) * delta;
+    const distance = (lan.flying ? 10 : MOVE_SPEED) * (running ? RUN_MULTIPLIER : 1) * waterSpeed(position.y, 0.46) * delta;
     step.copy(direction).multiplyScalar(distance);
-    if (!hitsBuilding(position.x + step.x, position.z, 0.45)) position.x += step.x;
-    if (!hitsBuilding(position.x, position.z + step.z, 0.45)) position.z += step.z;
+    if (!blockedAt(position.x + step.x, position.z, 0.45)) position.x += step.x;
+    if (!blockedAt(position.x, position.z + step.z, 0.45)) position.z += step.z;
 
     if (thirdPerson) {
       const angle = Math.atan2(-direction.x, -direction.z);
@@ -344,7 +360,7 @@ function animate(time: number) {
 
   world.update(position.x, position.z);
   const floor = world.groundHeight(position.x, position.z);
-  if (!driving && (jumpQueued || keys.has('Space')) && grounded) {
+  if (!driving && !lan.flying && (jumpQueued || keys.has('Space')) && grounded) {
     position.y = Math.max(position.y, floor);
     verticalVelocity = JUMP_FORCE;
     grounded = false;
@@ -352,10 +368,14 @@ function animate(time: number) {
   }
   jumpQueued = false;
 
+  if (!driving && lan.flying) {
+    position.y = THREE.MathUtils.clamp(position.y + verticalInput * 8 * delta, floor, Math.max(floor, 200));
+    verticalVelocity = 0; grounded = false;
+  }
   // Follow gentle downhill slopes and let gravity take over on steeper drops.
-  if (!driving && grounded && position.y - floor <= 9 * delta) {
+  if (!driving && !lan.flying && grounded && position.y - floor <= 9 * delta) {
     position.y = floor;
-  } else if (!driving) {
+  } else if (!driving && !lan.flying) {
     verticalVelocity += GRAVITY * delta;
     position.y += verticalVelocity * delta;
     const landed = !grounded && position.y <= floor && verticalVelocity < -2;
@@ -409,7 +429,7 @@ function animate(time: number) {
     }
   }
   const moved = Math.hypot(position.x - previousX, position.z - previousZ);
-  if (!driving && grounded && !lan.entering) {
+  if (!driving && !lan.flying && grounded && !lan.entering) {
     footstepDistance += moved;
     if (footstepDistance > 1.7) { footstepDistance = 0; sfx(floor < 0 ? 'splash' : 'step'); }
   } else footstepDistance = 0;

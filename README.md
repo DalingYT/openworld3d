@@ -22,3 +22,5 @@ En **Configuración → Audio** puedes ajustar la música y los efectos por sepa
 En **Configuración** puedes desactivar las texturas. Al conectar un mando, pulsa un botón para que el navegador lo detecte y elige **Xbox**, **Nintendo**, **PlayStation** o **Genérico**. El stick izquierdo mueve, el derecho gira la cámara y el menú muestra los botones correspondientes. Si el navegador no reconoce el mapa del mando, sigue la configuración guiada de botones y sticks.
 
 Busca **Gubo Tiendini** cerca de la entrada de la ciudad para abrir la tienda de sombreros y colores. Los carros se inclinan automáticamente siguiendo el impulso de la pendiente y la trayectoria del salto. No hay piruetas por teclas ni saltos automáticos para enderezarse.
+
+Abre **Vida** para ver tus **GuboCoins**, comprar una casa y enviar o aceptar solicitudes de amistad. Recibes 100 monedas al entrar y 5 por minuto conectado; una casa cuesta 80. Tus amigos aceptados pueden visitar tu casa. Monedas, casas y amistades se reinician al salir o reconectarte.

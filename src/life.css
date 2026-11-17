@@ -1,0 +1,5 @@
+#life-panel { width:min(520px,calc(100vw - 24px)); max-height:calc(100dvh - 24px); overflow:auto; box-sizing:border-box; border:1px solid #6585a4; border-radius:12px; background:#162739; color:white; padding:18px; font:14px/1.4 system-ui; }
+#life-panel::backdrop { background:#061020bb; }
+#life-panel h2 {font-size:20px;}
+#life-panel button {min-height:40px; margin:3px; padding:7px 10px; background:#294260; color:white; border:1px solid #7e9ab1; border-radius:7px; font:inherit;}
+#game-tools {max-width:65vw;flex-wrap:wrap;justify-content:flex-end;}

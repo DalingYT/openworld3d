@@ -1,3 +1,5 @@
+import { createLife } from './life';
+import type { World } from './world';
 import * as THREE from 'three';
 import { createChat } from './chat';
 import { createSettings } from './settings';
@@ -26,7 +28,8 @@ export function createLan(
   makeAvatar: (color: number) => THREE.Group,
   spawn: (x: number, z: number) => void,
   setColor: (color: number) => void,
-  cars: Cars
+  cars: Cars,
+  world: World
 ) {
   const dialog = document.querySelector<HTMLDialogElement>('#apodo')!;
   const form = dialog.querySelector('form')!;
@@ -71,6 +74,11 @@ export function createLan(
   let sending = false;
   let playerId = '';
   let carsAvailable = false;
+  let flying = false;
+  const life = createLife(scene, world, async social => {
+    if (!token) return 404;
+    try { return (await fetch(serverUrl + '/lan/move', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,social})})).status; } catch { return 0; }
+  }, spawn);
   const shop = createHatShop(player, setColor);
   let clockStart = performance.now();
   const settings = createSettings(async data => {
@@ -110,6 +118,7 @@ export function createLan(
 
   function updatePlayers(states: PlayerState[]) {
     showRoster(states);
+    life.setPlayers(states.map(({id,name})=>({id,name})));
     settings.setPlayers(states.map(({ id, name, freeChat }) => ({ id, name, freeChat })));
     const ids = new Set(states.map(state => state.id));
     for (const key of others.keys()) {
@@ -165,12 +174,14 @@ export function createLan(
     connection.addEventListener('ready', event => {
       const ready = JSON.parse(event.data) as {
         id: string; token: string; x: number; z: number; color: number;
-        worldTime?: number; moderation?: boolean; spawnCars?: boolean;
+        sessionFeatures?: boolean; worldTime?: number; moderation?: boolean; spawnCars?: boolean;
       };
       token = ready.token;
       shop.setConnected(true);
       settings.setConnected(true, ready.moderation);
       playerId = ready.id;
+      flying = false;
+      life.setConnected(ready.id, ready.sessionFeatures === true);
       carsAvailable = ready.spawnCars === true;
       cars.setDriver(ready.id);
       if (ready.worldTime !== undefined) clockStart = performance.now() - ready.worldTime;
@@ -197,6 +208,8 @@ export function createLan(
       connection.close();
       stream = null;
       token = null;
+      flying = false;
+      life.setConnected('', false);
       shop.setConnected(false);
       carsAvailable = false;
       cars.setDriver('');
@@ -210,8 +223,14 @@ export function createLan(
       dialog.showModal();
     });
     connection.addEventListener('permissions', event => {
-      if (token) chat.setFreeChat(JSON.parse(event.data).freeChat === true);
+      if (!token) return;
+      const permissions = JSON.parse(event.data);
+      chat.setFreeChat(permissions.freeChat === true);
+      flying = permissions.flying === true;
     });
+    connection.addEventListener('profile', event => { if(token){const data=JSON.parse(event.data);flying=data.flying===true;life.receiveProfile(data);} });
+    connection.addEventListener('houses', event => { if(token)life.receiveHomes(JSON.parse(event.data)); });
+    connection.addEventListener('home_visit', event => { if(token)life.visit(JSON.parse(event.data).houseId); });
     connection.addEventListener('chat', event => {
       if (!token) return;
       const { id, name, phrase, text } = JSON.parse(event.data) as { id: string; name: string; phrase?: string; text?: string };
@@ -220,6 +239,8 @@ export function createLan(
     });
     connection.addEventListener('error', () => {
       token = null;
+      flying = false;
+      life.setConnected('', false);
       shop.setConnected(false);
       carsAvailable = false;
       cars.setDriver('');
@@ -246,8 +267,9 @@ export function createLan(
   dialog.showModal();
 
   return {
+    get flying() { return flying; },
     get entering() { return dialog.open; },
-    get settingsOpen() { return settings.open || shop.open || chat.typing; },
+    get settingsOpen() { return settings.open || shop.open || chat.typing || life.open; },
     get carsAvailable() { return carsAvailable; },
     async ride(ride: string) {
       if (!token || !carsAvailable) return false;

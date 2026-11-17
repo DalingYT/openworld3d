@@ -1,3 +1,4 @@
+import { hitsHouse } from './life';
 import { sfx } from './audio';
 import * as THREE from 'three';
 import { hitsBuilding } from './city';
@@ -77,6 +78,7 @@ export function createCars(scene: THREE.Scene, world: World) {
   const cars = new Map<string, {
     mesh: THREE.Group; label: THREE.Sprite; state: CarState; lift: number; targetLift: number;
   }>();
+  let wasFlying = false;
   let driverId = '';
   let speed = 0;
   let lastDriven: string | null = null;
@@ -107,7 +109,7 @@ export function createCars(scene: THREE.Scene, world: World) {
   function blocked(x: number, z: number, yaw: number) {
     const fx = Math.sin(yaw) * 1.2;
     const fz = Math.cos(yaw) * 1.2;
-    return hitsBuilding(x + fx, z + fz, 1.15) || hitsBuilding(x - fx, z - fz, 1.15);
+    return hitsHouse(x,z,1.15,true) || hitsBuilding(x + fx, z + fz, 1.15) || hitsBuilding(x - fx, z - fz, 1.15);
   }
 
   return {
@@ -181,7 +183,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
       return closest;
     },
-    update(player: THREE.Group, steering: number, throttle: number, delta: number) {
+    update(player: THREE.Group, steering: number, throttle: number, delta: number, flying = false, verticalInput = 0) {
       const own = driven();
       const mix = 1 - Math.exp(-delta * 13);
       for (const car of cars.values()) {
@@ -207,6 +209,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
 
       if (!own) {
+        wasFlying = false;
         if (lastDriven) {
           speed = 0;
           bumpX = 0;
@@ -234,6 +237,19 @@ export function createCars(scene: THREE.Scene, world: World) {
       const { position, rotation } = mesh;
       const pedal = THREE.MathUtils.clamp(throttle, -1, 1);
       const steer = THREE.MathUtils.clamp(steering, -1, 1);
+      if (flying) {
+        wasFlying = true; verticalSpeed = null; pitchRate = rollRate = 0;
+        const heading = rotation.y - steer * delta * 1.6;
+        speed = THREE.MathUtils.lerp(speed, pedal * 18, 1 - Math.exp(-delta * 3));
+        const nextX = position.x - Math.sin(heading) * speed * delta;
+        const nextZ = position.z - Math.cos(heading) * speed * delta;
+        if (position.y > world.groundHeight(nextX,nextZ)+18 || !blocked(nextX,nextZ,heading)) { position.x = nextX; position.z = nextZ; }
+        position.y = THREE.MathUtils.clamp(position.y + verticalInput * 8 * delta, world.groundHeight(position.x,position.z), Math.max(200,world.groundHeight(position.x,position.z)));
+        rotation.set(0,heading,0,'YXZ'); bumpX = bumpZ = 0;
+        player.position.copy(position); player.rotation.y = heading;
+        return heading;
+      }
+      if (wasFlying) { wasFlying = false; verticalSpeed = 0; groundVelocity = 0; }
       const oldYaw = rotation.y;
       const oldVX = bumpX - Math.sin(oldYaw) * speed;
       const oldVZ = bumpZ - Math.cos(oldYaw) * speed;

@@ -1,3 +1,4 @@
+import housePlots from '../shared/houses.json';
 import { textured } from './textures';
 import * as THREE from 'three';
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
@@ -12,7 +13,7 @@ const WATER_LEVEL = 0;
 const noise = new ImprovedNoise();
 const { lerp, smoothstep } = THREE.MathUtils;
 
-function terrainHeight(x: number, z: number) {
+function baseTerrainHeight(x: number, z: number) {
   const coast = noise.noise(x / 230 + 14.7, z / 230 - 8.3, 0.41);
   const hills = noise.noise(x / 87 - 6.1, z / 87 + 13.2, 0.67);
   const detail = noise.noise(x / 28 + 9.4, z / 28 + 4.8, 0.23);
@@ -23,6 +24,15 @@ function terrainHeight(x: number, z: number) {
   const { minX, maxX, minZ, maxZ } = CITY_LIMITS;
   const edge = Math.max(minX - x, x - maxX, minZ - z, z - maxZ);
   return lerp(CITY_HEIGHT, height, smoothstep(edge, 0, 11));
+}
+
+function terrainHeight(x:number,z:number) {
+  const height=baseTerrainHeight(x,z);
+  for(const plot of housePlots){
+    const edge=Math.max(Math.abs(x-plot.x)-6,Math.abs(z-plot.z)-7);
+    if(edge<4)return lerp(Math.max(2,baseTerrainHeight(plot.x,plot.z)),height,smoothstep(edge,0,4));
+  }
+  return height;
 }
 
 export function waterSpeed(height: number, minimum: number) {
@@ -155,6 +165,7 @@ function makeScenery(cx: number, cz: number, height: (x: number, z: number) => n
     const tree = random() > 0.3;
     const c = CITY_LIMITS;
     if (x > c.minX - 14 && x < c.maxX + 14 && z > c.minZ - 14 && z < c.maxZ + 14) continue;
+    if (housePlots.some(h => Math.abs(x-h.x)<10 && Math.abs(z-h.z)<11)) continue;
     if (y < 3 || y > 48 || Math.abs(height(x + 2, z) - y) > 1.5 || Math.abs(height(x, z + 2) - y) > 1.5) continue;
     dummy.rotation.set(0, turn, 0);
     dummy.scale.setScalar(size);
