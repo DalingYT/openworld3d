@@ -1,3 +1,4 @@
+import houses from '../shared/houses.json' with { type: 'json' };
 import buildings from '../shared/city-buildings.json' with { type: 'json' };
 
 const motion = new WeakMap();
@@ -11,7 +12,8 @@ function reach(yaw, nx, nz) {
 function outsideBuildings(x, z, yaw) {
   const marginX = reach(yaw, 1, 0);
   const marginZ = reach(yaw, 0, 1);
-  return !buildings.some(block => Math.abs(x - block.x) < 4 + marginX
+  return !houses.some(h => Math.abs(x - h.x) < 4.2 + marginX && Math.abs(z - h.z) < 5.2 + marginZ)
+    && !buildings.some(block => Math.abs(x - block.x) < 4 + marginX
     && Math.abs(z - block.z) < 6 + marginZ);
 }
 

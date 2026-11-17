@@ -110,7 +110,7 @@ export function createCars(scene: THREE.Scene, world: World) {
   function blocked(x: number, z: number, yaw: number) {
     const fx = Math.sin(yaw) * 1.2;
     const fz = Math.cos(yaw) * 1.2;
-    return hitsHouse(x,z,1.15,true) || hitsBuilding(x + fx, z + fz, 1.15) || hitsBuilding(x - fx, z - fz, 1.15);
+    return hitsHouse(x + fx,z + fz,1.15,true) || hitsHouse(x - fx,z - fz,1.15,true) || hitsBuilding(x + fx, z + fz, 1.15) || hitsBuilding(x - fx, z - fz, 1.15);
   }
 
   return {
@@ -229,7 +229,7 @@ export function createCars(scene: THREE.Scene, world: World) {
           for (const sign of [1, -1]) {
             const x = player.position.x + Math.sin(side) * 2.5 * sign;
             const z = player.position.z + Math.cos(side) * 2.5 * sign;
-            if (!hitsBuilding(x, z, 0.45)) {
+            if (!hitsBuilding(x, z, 0.45) && !hitsHouse(x, z, 0.45, true)) {
               player.position.set(x, world.groundHeight(x, z), z);
               break;
             }

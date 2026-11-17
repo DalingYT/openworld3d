@@ -11,6 +11,7 @@ export function hitsHouse(x:number,z:number,radius:number,car=false,fromX=x,from
   return plots.some(h=>{
     const dx=Math.abs(x-h.x),dz=z-h.z;
     if(dx>4.2+radius||Math.abs(dz)>5.2+radius)return false;
+    if(car)return true; // Cars cannot occupy any part of a house, including its interior.
     if(dx>3.8-radius||dz< -4.8+radius)return true;
     const leaving = Math.abs(fromX-h.x)<3.8 && fromZ-h.z> -4.8 && fromZ-h.z<5.7 && z>=fromZ;
     return dz>4.8-radius && (car||(!accessible.has(h.id)&&!leaving)||dx>1.2-radius);
