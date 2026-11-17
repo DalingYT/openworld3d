@@ -27,3 +27,5 @@ Abre **Vida** para ver tus **GuboCoins**, comprar una casa y enviar o aceptar so
 `Espacio` o **Saltar** dos veces permite un doble salto, tanto a pie como en carro. Al conducir, mantén **Shift**, el botón **Nitro** o el botón de correr del mando para usar nitro (3 segundos de carga; recarga en 6 segundos). El selector **Velocidad** ofrece Paseo, Normal, Deportivo y Extremo. Extremo supera los 200 km/h en terreno plano sin nitro y tiene frenos reforzados. El contador de FPS aparece en una esquina.
 
 En el selector junto a **Sacar carro**, elige **Taxi · 4 plazas** para sacar un taxi amarillo. El dueño conduce y otros tres jugadores pueden subir con **E** o **Subir al carro**. Cada pasajero puede bajarse por su cuenta; solo el conductor controla velocidad, nitro y saltos. El indicador del taxi muestra cuántas plazas están ocupadas.
+
+**Modo Inquientante** es el modo más rápido: supera los 300 km/h en terreno plano al usar nitro, con frenos reforzados. También está disponible en el taxi.

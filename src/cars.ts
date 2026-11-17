@@ -264,7 +264,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       const { position, rotation } = mesh;
       const pedal = THREE.MathUtils.clamp(throttle, -1, 1);
       const steer = THREE.MathUtils.clamp(steering, -1, 1);
-      const pace = [0.65, 1, 1.35, 3].includes(speedMode) ? speedMode : 1;
+      const pace = [0.65, 1, 1.35, 3, 5].includes(speedMode) ? speedMode : 1;
       if (!boost) nitroExhausted = false;
       const boosting = boost && pedal > 0 && nitro > 0 && !nitroExhausted;
       nitro = THREE.MathUtils.clamp(nitro + (boosting ? -delta / 3 : delta / 6), 0, 1);
@@ -306,10 +306,10 @@ export function createCars(scene: THREE.Scene, world: World) {
         const limit = (pedal < 0 ? 9 : 24 * power) * wet * pace;
         const braking = pedal !== 0 && pedal * speed < -0.2;
         if (braking) {
-          const amount = (pace === 3 ? 44 : 22) * Math.abs(pedal) * delta;
+          const amount = (pace === 5 ? 66 : pace === 3 ? 44 : 22) * Math.abs(pedal) * delta;
           speed = Math.sign(speed) * Math.max(0, Math.abs(speed) - amount);
         } else if (pedal) {
-          speed += pedal * 8.5 * pace * (pace === 3 ? 2 : 1) * (boosting ? 2.5 : 1) * delta;
+          speed += pedal * 8.5 * pace * (pace === 3 ? 2 : 1) * (boosting ? (pace === 5 ? 3.5 : 2.5) : 1) * delta;
         }
         const resistance = (1.1 + 0.012 * speed * speed + (1 - wet) * 12) * delta;
         speed = Math.sign(speed) * Math.max(0, Math.abs(speed) - resistance);

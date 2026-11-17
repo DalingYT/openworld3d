@@ -5,7 +5,7 @@ export function createDrivingHud() {
   panel.id = 'driving-hud'; panel.hidden = true;
   const label = document.createElement('label'); label.textContent = 'Velocidad ';
   const select = document.createElement('select'); select.setAttribute('aria-label', 'Velocidad del carro');
-  for (const [name, value] of [['Paseo', '0.65'], ['Normal', '1'], ['Deportivo', '1.35'], ['Extremo', '3']]) {
+  for (const [name, value] of [['Paseo', '0.65'], ['Normal', '1'], ['Deportivo', '1.35'], ['Extremo', '3'], ['Modo Inquientante', '5']]) {
     select.add(new Option(name, value));
   }
   select.value = '1'; label.append(select);
