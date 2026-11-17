@@ -1,3 +1,5 @@
+import { setupUpdateNotice } from './update-notice';
+setupUpdateNotice();
 import { createJumpInput } from './jump-input';
 import { createDrivingHud } from './driving-hud';
 import { hitsHouse } from './life';
@@ -150,7 +152,7 @@ const carAction = document.querySelector<HTMLButtonElement>('#car-action')!;
 const carActionText = carAction.querySelector('b')!;
 const spawnCar = document.querySelector<HTMLButtonElement>('#car-spawn')!;
 const vehicleType = document.createElement('select'); vehicleType.setAttribute('aria-label', 'Tipo de carro');
-vehicleType.add(new Option('Carro', 'car')); vehicleType.add(new Option('Taxi · 4 plazas', 'taxi'));
+vehicleType.add(new Option('Barco', 'boat')); vehicleType.add(new Option('Barco · 4 plazas', 'boat4')); vehicleType.add(new Option('Carro', 'car')); vehicleType.value='car'; vehicleType.add(new Option('Taxi · 4 plazas', 'taxi'));
 vehicleType.style.cssText = 'background:#294260;color:white;border:1px solid #7e9ab1;border-radius:6px;min-height:36px;max-width:140px';
 spawnCar.before(vehicleType);
 const tiendini = document.createElement('button'); tiendini.type = 'button'; tiendini.textContent = 'Entrar a Gubo Tiendini'; tiendini.hidden = true;
@@ -174,8 +176,8 @@ spawnCar.addEventListener('click', async () => {
   if (ridePending || (lan.settingsOpen || arcade.open || gamepad.open) || !lan.carsAvailable || cars.riding) return;
   ridePending = true;
   spawnCar.disabled = true;
-  if (!await lan.ride('spawn', vehicleType.value as 'car' | 'taxi')) {
-    spawnCar.textContent = 'No se pudo sacar el carro';
+  if (!await lan.ride('spawn', vehicleType.value as 'car' | 'taxi' | 'boat' | 'boat4')) {
+    spawnCar.textContent = ['boat','boat4'].includes(vehicleType.value) ? 'Acércate al agua libre' : 'No se pudo sacar el carro';
     window.setTimeout(() => { spawnCar.textContent = 'Sacar carro'; }, 1800);
   }
   spawnCar.disabled = false;
@@ -343,8 +345,8 @@ function animate(time: number) {
   flyPulse = Math.max(0, flyPulse - delta);
   const verticalInput = (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : Number(flyUp || flyPulse > 0 || keys.has('Space')) - Number(flyDown || keys.has('ControlLeft') || keys.has('ControlRight'));
   const boost = !lan.entering && !lan.settingsOpen && !arcade.open && !gamepad.open && (drivingHud.boost || gamepad.input.running || keys.has('ShiftLeft') || keys.has('ShiftRight'));
-  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveX, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveZ, delta, lan.flying, verticalInput, boost, drivingHud.speedMode);
-  drivingHud.update(time, cars.driving, cars.nitro, cars.speed);
+  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveX, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveZ, delta, lan.flying, verticalInput, boost, drivingHud.speedMode, lan.admin);
+  drivingHud.update(time, cars.driving, cars.nitro, cars.speed, lan.admin);
   const driving = carYaw !== null;
   if (driving) {
     verticalVelocity = 0;
@@ -406,10 +408,11 @@ function animate(time: number) {
   }
 
   eyes.copy(position);
-  eyes.y += driving ? 2.05 : 1.65;
+  eyes.y += driving ? 1.55 : 1.65;
+  cars.setFirstPerson(!thirdPerson);
   view.set(-sinYaw * Math.cos(pitch), Math.sin(pitch), -cosYaw * Math.cos(pitch));
 
-  if (thirdPerson || driving) {
+  if (thirdPerson) {
     target.copy(view).multiplyScalar(driving ? -9.5 : -CAMERA_DISTANCE);
     target.y += driving ? 3.2 : 2;
     let clearFraction = 1;

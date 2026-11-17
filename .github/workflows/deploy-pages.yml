@@ -30,10 +30,12 @@ jobs:
       - run: npm ci
       - name: Compilar el juego con la URL del servidor
         env:
+          VITE_BUILD_ID: ${{ github.sha }}
           VITE_MULTIPLAYER_URL: ${{ vars.VITE_MULTIPLAYER_URL || 'https://openworld3d-game.onrender.com' }}
         run: |
           node -e 'if (new URL(process.env.VITE_MULTIPLAYER_URL).protocol !== "https:") throw Error("VITE_MULTIPLAYER_URL debe apuntar al servidor HTTPS")'
           npm run build
+          node -e 'require("node:fs").writeFileSync("dist/version.json", JSON.stringify({version:process.env.VITE_BUILD_ID}))'
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:
           path: dist

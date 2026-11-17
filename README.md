@@ -29,3 +29,7 @@ Abre **Vida** para ver tus **GuboCoins**, comprar una casa y enviar o aceptar so
 En el selector junto a **Sacar carro**, elige **Taxi · 4 plazas** para sacar un taxi amarillo. El dueño conduce y otros tres jugadores pueden subir con **E** o **Subir al carro**. Cada pasajero puede bajarse por su cuenta; solo el conductor controla velocidad, nitro y saltos. El indicador del taxi muestra cuántas plazas están ocupadas.
 
 **Modo Inquientante** es el modo más rápido: supera los 300 km/h en terreno plano al usar nitro, con frenos reforzados. También está disponible en el taxi.
+
+Elige **Barco** en el selector y acércate a la orilla para sacarlo en agua libre. Se maneja con los mismos controles y se detiene ante tierra firme. El modo **Muerte** añade más velocidad y nitro a carros y taxis. El chat libre y los anuncios tienen un filtro de palabras del servidor; los mensajes detectados aparecen como «[Mensaje filtrado]».
+
+El **Barco · 4 plazas** admite conductor y tres pasajeros. Pulsa **T** o el botón de cámara para conducir en primera o tercera persona. **Muerte** solo aparece para administradores. Tres mensajes filtrados en dos minutos provocan un veto temporal de diez minutos. Las nuevas versiones muestran un aviso para actualizar cuando tú decidas.

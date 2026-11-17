@@ -31,7 +31,10 @@ export function createDrivingHud() {
   return {
     get boost() { return held; },
     get speedMode() { return Number(select.value); },
-    update(time: number, driving: boolean, fuel: number, velocity: number) {
+    update(time: number, driving: boolean, fuel: number, velocity: number, admin = false) {
+      const death = select.querySelector('option[value="8"]');
+      if (admin && !death) select.add(new Option('Muerte', '8'));
+      if (!admin && death) { if(select.value === '8')select.value='1'; death.remove(); }
       panel.hidden = !driving;
       if (!driving) held = false;
       if (!since) since = time;

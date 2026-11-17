@@ -1,3 +1,4 @@
+import { createChatModeration } from './chat-moderation.mjs';
 import { createSessionFeatures } from './session-features.mjs';
 import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import phrases from '../shared/phrases.json' with { type: 'json' };
@@ -10,6 +11,7 @@ const ADMIN_WINDOW = 60_000;
 
 export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
   const players = new Map();
+  const chatModeration = createChatModeration();
   const slots = new Set();
   const cars = new Map();
   const secret = typeof adminCode === 'string' && codeFormat.test(adminCode) ? Buffer.from(adminCode) : null;
@@ -31,6 +33,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
   const features = createSessionFeatures(players, send);
   const timer = setInterval(() => {
     features.tick();
+    chatModeration.prune();
     const ping = Date.now() - lastPing >= 10_000;
     if (dirty) {
       const snapshot = [...players.values()].filter(player => player.state).map(
@@ -79,6 +82,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     if (car) {
       if (car.driver === player.id) {
         releaseCar(car);
+        if(['boat','boat4'].includes(car.kind))car.vx=car.vz=0;
         delete car.y; delete car.pitch; delete car.roll;
       } else if (car.passengers) {
         car.passengers = car.passengers.map(id => id === player.id ? null : id);
@@ -90,17 +94,18 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     dirty = true;
   }
 
-  function spawnCar(player, response, selectedColor = player.color, vehicleType = 'car') {
+  function spawnCar(player, response, selectedColor = player.color, vehicleType = 'car', boatSpawn) {
     if (!player.state || player.car || Date.now() < (player.nextSpawn ?? 0)) {
       return response.writeHead(409).end();
     }
+    if(['boat','boat4'].includes(vehicleType) && (!boatSpawn || !Number.isFinite(boatSpawn.x) || !Number.isFinite(boatSpawn.z) || Math.hypot(boatSpawn.x-player.state.x,boatSpawn.z-player.state.z)>10.5))return response.writeHead(400).end();
     const previous = cars.get(player.ownedCar);
     if (previous && (previous.driver || previous.passengers?.some(Boolean))) return response.writeHead(409).end();
     const { x, z, yaw } = player.state;
     for (const offset of [0, Math.PI / 2, -Math.PI / 2, Math.PI]) {
       const angle = yaw + offset;
-      const carX = x - Math.sin(angle) * 5.75;
-      const carZ = z - Math.cos(angle) * 5.75;
+      const carX = ['boat','boat4'].includes(vehicleType) ? boatSpawn.x : x - Math.sin(angle) * 5.75;
+      const carZ = ['boat','boat4'].includes(vehicleType) ? boatSpawn.z : z - Math.cos(angle) * 5.75;
       if (!carSpaceFree(cars, carX, carZ, yaw, previous)) continue;
       player.color = selectedColor;
       dirty = true;
@@ -108,7 +113,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       const id = randomUUID();
       cars.set(id, {
         id, owner: player.id, name: player.name, color: vehicleType === 'taxi' ? 0xffcb32 : player.color, driver: null,
-        kind: vehicleType, passengers: vehicleType === 'taxi' ? [null,null,null] : [],
+        kind: vehicleType, passengers: ['taxi','boat4'].includes(vehicleType) ? [null,null,null] : [],
         x: carX, z: carZ, yaw, vx: 0, vz: 0, impact: 0
       });
       player.ownedCar = id;
@@ -129,6 +134,10 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       return;
     }
     const url = new URL(request.url ?? '/', 'http://localhost');
+    const rawClientId = url.searchParams.get('clientId') ?? '';
+    const clientId = /^[a-zA-Z0-9-]{16,64}$/.test(rawClientId) ? rawClientId : 'ip:' + request.socket.remoteAddress;
+    const until = chatModeration.bannedUntil(clientId);
+    if (until) { response.writeHead(200, {'Content-Type':'text/event-stream','Cache-Control':'no-store'}); send(response,'kicked',{until});response.end();return; }
     const name = url.searchParams.get('name')?.trim().slice(0, 24);
     if (!name || /[\p{Cc}\p{Cf}]/u.test(name)) {
       response.writeHead(400).end();
@@ -147,7 +156,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     const usedColors = new Set([...players.values()].map(player => player.color));
     const freeColors = colors.filter(color => !usedColors.has(color));
     const color = freeColors[randomInt(freeColors.length)];
-    players.set(token, { id, name, color, response, slot, state: null, car: null, hat: null });
+    players.set(token, { id, clientId, name, color, response, slot, state: null, car: null, hat: null });
     features.start(players.get(token));
     response.on('close', () => disconnect(token, slot));
 
@@ -161,6 +170,17 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     send(response, 'cars', [...cars.values()]);
     features.broadcast();
     dirty = true;
+  }
+
+  function moderatedText(player,text) {
+    const result=chatModeration.check(player.clientId,text.trim());
+    if(result.strikes && !result.until)send(player.response,'announcement',{name:'Moderación',text:`Mensaje filtrado (${result.strikes}/3). Respeta las reglas; otra infracción puede provocar un veto de 10 minutos.`});
+    if(result.until) {
+      for(const [token,other] of players) if(other.clientId===player.clientId) {
+        send(other.response,'kicked',{until:result.until});other.response.end();disconnect(token,other.slot);
+      }
+    }
+    return result;
   }
 
   function withPlayer(handler) {
@@ -196,12 +216,12 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     };
   }
 
-  const move = withPlayer((player, { x, y, z, yaw, phrase, text, ride, drivingCar, carImpact, hat, color, pitch, roll, social, vehicleType }, response) => {
+  const move = withPlayer((player, { x, y, z, yaw, phrase, text, ride, drivingCar, carImpact, hat, color, pitch, roll, social, vehicleType, boatSpawn, speedMode }, response) => {
     if (social !== undefined) return features.action(player, social, response);
     if (ride === 'spawn') {
       if (color !== undefined && !colors.includes(color)) return response.writeHead(400).end();
-      if (vehicleType !== undefined && !['car','taxi'].includes(vehicleType)) return response.writeHead(400).end();
-      return spawnCar(player, response, color, vehicleType);
+      if (vehicleType !== undefined && !['car','taxi','boat','boat4'].includes(vehicleType)) return response.writeHead(400).end();
+      return spawnCar(player, response, color, vehicleType, boatSpawn);
     }
     if (ride === 'exit') {
       leaveCar(player);
@@ -216,7 +236,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
         return response.writeHead(409).end();
       }
       if (car.owner === player.id && !car.driver) car.driver = player.id;
-      else if (car.kind === 'taxi' && car.owner !== player.id && car.passengers.includes(null)) {
+      else if (['taxi','boat4'].includes(car.kind) && car.owner !== player.id && car.passengers.includes(null)) {
         car.passengers[car.passengers.indexOf(null)] = player.id;
       } else return response.writeHead(409).end();
       player.car = car.id;
@@ -238,7 +258,9 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
         return;
       }
       player.nextChat = now + 1800;
-      const message = text === undefined ? { id: player.id, name: player.name, phrase } : { id: player.id, name: player.name, text: text.trim() };
+      const filtered = text === undefined ? null : moderatedText(player,text);
+      if(filtered?.until)return response.writeHead(403).end();
+      const message = text === undefined ? { id: player.id, name: player.name, phrase } : { id: player.id, name: player.name, text: filtered.text };
       for (const other of players.values()) send(other.response, 'chat', message);
       response.writeHead(204).end();
       return;
@@ -248,6 +270,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       response.writeHead(400).end();
       return;
     }
+    if (speedMode === 8 && !player.admin) return response.writeHead(403).end();
     if (player.car !== (drivingCar ?? null)) return response.writeHead(409).end();
     if (player.car && carImpact !== cars.get(player.car).impact) return response.writeHead(409).end();
     if (hat !== undefined && hat !== null && (typeof hat !== 'string' || !Object.hasOwn(hats, hat))) {
@@ -290,8 +313,10 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     if (action === 'announce') {
       if (typeof text !== 'string' || !text.trim() || text.trim().length > 160 || /[\p{Cc}\p{Cf}]/u.test(text)) return response.writeHead(400).end();
       if (Date.now() - lastAnnouncement < 5000) return response.writeHead(429).end();
+      const filtered = moderatedText(player,text);
+      if(filtered.until)return response.writeHead(403).end();
       lastAnnouncement = Date.now();
-      for (const recipient of players.values()) send(recipient.response, 'announcement', {name:player.name,text:text.trim()});
+      for (const recipient of players.values()) send(recipient.response, 'announcement', {name:player.name,text:filtered.text});
       return response.writeHead(204).end();
     }
     if (action === 'fly' || action === 'unfly') {
@@ -356,7 +381,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     }
     player.admin = true;
     dirty = true;
-    send(player.response, 'permissions', { freeChat: true, flying:Boolean(player.flying) });
+    send(player.response, 'permissions', { freeChat: true, admin:true, flying:Boolean(player.flying) });
     response.writeHead(204).end();
   });
 

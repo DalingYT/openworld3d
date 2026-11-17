@@ -6,7 +6,7 @@ import { World, waterSpeed } from './world';
 import { makeNameTag, disposeNameTag } from './name-tag';
 
 export type CarState = {
-  kind?: 'car' | 'taxi'; passengers?: (string | null)[];
+  kind?: 'car' | 'taxi' | 'boat' | 'boat4'; passengers?: (string | null)[];
   id: string; owner: string; name: string; color: number;
   x: number; y?: number; z: number; yaw: number; driver: string | null;
   impact: number; vx: number; vz: number; pitch?: number; roll?: number;
@@ -64,7 +64,26 @@ function makeCar(color: number, taxi = false) {
   return car;
 }
 
+function makeBoat(color: number) {
+  const boat = new THREE.Group();
+  for (const [x,y,z,w,h,d,mat] of [
+    [0,.12,0,2.1,.5,4,bodyMaterial(color)],
+    [-1,.55,0,.18,.65,4,bodyMaterial(color)], [1,.55,0,.18,.65,4,bodyMaterial(color)],
+    [0,.5,-1.85,2,.6,.3,bodyMaterial(color)], [0,.5,1.85,2,.6,.3,bodyMaterial(color)],
+    [0,.45,.7,1.6,.4,.5,rubber], [0,.9,-.4,1.5,.65,.1,glass]
+  ] as const) { const mesh = new THREE.Mesh(box,mat); mesh.position.set(x,y,z); mesh.scale.set(w,h,d); if(mat===bodyMaterial(color))mesh.name='paint'; boat.add(mesh); }
+  return boat;
+}
+
 export function createCars(scene: THREE.Scene, world: World) {
+  function waterClear(x: number,z: number,yaw: number) {
+    for(const side of [-1,1]) for(const end of [-2,0,2]) {
+      const px=x+side*Math.cos(yaw)+end*Math.sin(yaw), pz=z-side*Math.sin(yaw)+end*Math.cos(yaw);
+      if(world.groundHeight(px,pz)>-.3)return false;
+    }
+    return true;
+  }
+
   function alignToTerrain(mesh: THREE.Group, yaw: number, level = false, delta = 1) {
     const { x, z } = mesh.position;
     const sin = Math.sin(yaw);
@@ -85,6 +104,7 @@ export function createCars(scene: THREE.Scene, world: World) {
     mesh: THREE.Group; label: THREE.Sprite; state: CarState; lift: number; targetLift: number;
   }>();
   let wasFlying = false;
+  let activeMode = 1;
   let jumpsUsed = 0, nitro = 1, nitroExhausted = false;
   let driverId = '';
   let speed = 0;
@@ -124,8 +144,17 @@ export function createCars(scene: THREE.Scene, world: World) {
   }
 
   return {
+    boatSpawn(position: THREE.Vector3, yaw: number) {
+      for(const radius of [5.75,8,10]) for(let i=0;i<16;i++) {
+        const angle=yaw+i*Math.PI/8, x=position.x-Math.sin(angle)*radius, z=position.z-Math.cos(angle)*radius;
+        if(waterClear(x,z,yaw))return {x,z};
+      }
+      return null;
+    },
+    get speedMode() { return activeMode; },
+    setFirstPerson(enabled: boolean) { const current = ridden(); for (const car of cars.values()) car.mesh.visible = !(enabled && car === current); },
     jump() {
-      if (!driven() || wasFlying || jumpsUsed >= 2) return;
+      if (!driven() || ['boat','boat4'].includes(driven()?.state.kind ?? '') || wasFlying || jumpsUsed >= 2) return;
       jumpsUsed = verticalSpeed === null ? 1 : 2;
       verticalSpeed = RECOVERY_SPEED; sfx('jump');
     },
@@ -151,10 +180,10 @@ export function createCars(scene: THREE.Scene, world: World) {
       for (const state of states) {
         let car = cars.get(state.id);
         if (!car) {
-          const mesh = makeCar(state.color, state.kind === 'taxi');
-          const label = makeNameTag(state.kind === 'taxi' ? `Taxi ${state.name} · ${Number(Boolean(state.driver)) + (state.passengers?.filter(Boolean).length ?? 0)}/4` : state.name);
-          mesh.position.set(state.x, world.groundHeight(state.x, state.z), state.z);
-          alignToTerrain(mesh, state.yaw);
+          const mesh = (state.kind === 'boat' || state.kind === 'boat4') ? makeBoat(state.color) : makeCar(state.color, state.kind === 'taxi');
+          const label = makeNameTag((state.kind === 'taxi' || state.kind === 'boat4') ? `${state.kind === 'boat4' ? 'Barco' : 'Taxi'} ${state.name} · ${Number(Boolean(state.driver)) + (state.passengers?.filter(Boolean).length ?? 0)}/4` : state.name);
+          mesh.position.set(state.x, (state.kind === 'boat' || state.kind === 'boat4') ? 0 : world.groundHeight(state.x, state.z), state.z);
+          if((state.kind !== 'boat' && state.kind !== 'boat4')) alignToTerrain(mesh, state.yaw);
           mesh.add(label);
           scene.add(mesh);
           car = { mesh, label, state, lift: 0, targetLift: 0 };
@@ -167,15 +196,15 @@ export function createCars(scene: THREE.Scene, world: World) {
         }
         if (car.state.name !== state.name || car.state.driver !== state.driver || JSON.stringify(car.state.passengers) !== JSON.stringify(state.passengers)) {
           disposeNameTag(car.label);
-          car.label = makeNameTag(state.kind === 'taxi' ? `Taxi ${state.name} · ${Number(Boolean(state.driver)) + (state.passengers?.filter(Boolean).length ?? 0)}/4` : state.name);
+          car.label = makeNameTag((state.kind === 'taxi' || state.kind === 'boat4') ? `${state.kind === 'boat4' ? 'Barco' : 'Taxi'} ${state.name} · ${Number(Boolean(state.driver)) + (state.passengers?.filter(Boolean).length ?? 0)}/4` : state.name);
           car.mesh.add(car.label);
         }
         const tookWheel = state.driver === driverId && car.state.driver !== driverId;
         const hit = state.driver === driverId && car.state.impact !== state.impact;
         if (hit) sfx('crash');
         if (tookWheel || hit) {
-          car.mesh.position.set(state.x, state.y ?? world.groundHeight(state.x, state.z), state.z);
-          alignToTerrain(car.mesh, state.yaw);
+          car.mesh.position.set(state.x, (state.kind === 'boat' || state.kind === 'boat4') ? 0 : state.y ?? world.groundHeight(state.x, state.z), state.z);
+          if((state.kind !== 'boat' && state.kind !== 'boat4')) alignToTerrain(car.mesh, state.yaw);
           const forwardX = -Math.sin(state.yaw);
           const forwardZ = -Math.cos(state.yaw);
           speed = state.vx * forwardX + state.vz * forwardZ;
@@ -183,7 +212,7 @@ export function createCars(scene: THREE.Scene, world: World) {
           bumpZ = state.vz - forwardZ * speed;
         }
         car.state = state;
-        car.targetLift = state.y === undefined ? 0
+        car.targetLift = (state.kind === 'boat' || state.kind === 'boat4') || state.y === undefined ? 0
           : THREE.MathUtils.clamp(state.y - world.groundHeight(state.x, state.z), 0, 80);
       }
     },
@@ -192,9 +221,9 @@ export function createCars(scene: THREE.Scene, world: World) {
       let distance = 4.5;
       for (const [id, { mesh, state }] of cars) {
         const driverSeat = state.owner === driverId && !state.driver;
-        const passengerSeat = state.kind === 'taxi' && state.owner !== driverId && state.passengers?.includes(null);
+        const passengerSeat = (state.kind === 'taxi' || state.kind === 'boat4') && state.owner !== driverId && state.passengers?.includes(null);
         if (!driverSeat && !passengerSeat) continue;
-        const d = mesh.position.distanceTo(position);
+        const d = ['boat','boat4'].includes(state.kind ?? '') ? Math.hypot(mesh.position.x-position.x,mesh.position.z-position.z) : mesh.position.distanceTo(position);
         if (d < distance) {
           closest = id;
           distance = d;
@@ -202,7 +231,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
       return closest;
     },
-    update(player: THREE.Group, steering: number, throttle: number, delta: number, flying = false, verticalInput = 0, boost = false, speedMode = 1) {
+    update(player: THREE.Group, steering: number, throttle: number, delta: number, flying = false, verticalInput = 0, boost = false, speedMode = 1, admin = false) {
       const own = driven();
       const mix = 1 - Math.exp(-delta * 13);
       for (const car of cars.values()) {
@@ -215,7 +244,7 @@ export function createCars(scene: THREE.Scene, world: World) {
           Math.abs(from - to) < 0.01 ? to : THREE.MathUtils.lerp(from, to, mix);
         mesh.position.x = approach(mesh.position.x, state.x);
         mesh.position.z = approach(mesh.position.z, state.z);
-        const floor = world.groundHeight(mesh.position.x, mesh.position.z);
+        const floor = (state.kind === 'boat' || state.kind === 'boat4') ? 0 : world.groundHeight(mesh.position.x, mesh.position.z);
         car.lift = approach(car.lift, car.targetLift);
         mesh.position.y = floor + car.lift;
         const angle = state.yaw - mesh.rotation.y;
@@ -224,7 +253,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         if (state.pitch !== undefined && state.roll !== undefined) {
           const angleTo = (from: number, to: number) => from + Math.atan2(Math.sin(to - from), Math.cos(to - from)) * mix;
           mesh.rotation.set(angleTo(mesh.rotation.x, state.pitch), yaw, angleTo(mesh.rotation.z, state.roll), 'YXZ');
-        } else alignToTerrain(mesh, yaw, car.lift > 0.2, delta);
+        } else if((state.kind === 'boat' || state.kind === 'boat4')) mesh.rotation.set(0,yaw,0); else alignToTerrain(mesh, yaw, car.lift > 0.2, delta);
       }
 
       const passengerCar = !own ? ridden() : undefined;
@@ -235,6 +264,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         return player.rotation.y;
       }
       if (!own) {
+        activeMode = 1;
         wasFlying = false; jumpsUsed = 0; nitro = 1; nitroExhausted = false;
         if (lastDriven) {
           speed = 0;
@@ -264,12 +294,23 @@ export function createCars(scene: THREE.Scene, world: World) {
       const { position, rotation } = mesh;
       const pedal = THREE.MathUtils.clamp(throttle, -1, 1);
       const steer = THREE.MathUtils.clamp(steering, -1, 1);
-      const pace = [0.65, 1, 1.35, 3, 5].includes(speedMode) ? speedMode : 1;
+      const pace = [0.65, 1, 1.35, 3, 5, ...(admin ? [8] : [])].includes(speedMode) ? speedMode : 1;
+      activeMode = pace;
       if (!boost) nitroExhausted = false;
       const boosting = boost && pedal > 0 && nitro > 0 && !nitroExhausted;
       nitro = THREE.MathUtils.clamp(nitro + (boosting ? -delta / 3 : delta / 6), 0, 1);
       if (nitro === 0) nitroExhausted = true;
       const power = boosting ? 1.65 : 1;
+      if ((state.kind === 'boat' || state.kind === 'boat4')) {
+        const heading=rotation.y-steer*delta*1.25;
+        speed=THREE.MathUtils.lerp(speed,pedal*(pedal<0?6:14)*Math.min(pace,3)*power,1-Math.exp(-delta*1.6));
+        const distance=speed*delta, steps=Math.max(1,Math.ceil(Math.abs(distance)/.5));
+        let clear=true;
+        for(let i=1;i<=steps;i++)if(!waterClear(position.x-Math.sin(heading)*distance*i/steps,position.z-Math.cos(heading)*distance*i/steps,heading)){clear=false;break;}
+        if(clear){position.x-=Math.sin(heading)*distance;position.z-=Math.cos(heading)*distance;rotation.set(0,heading,0);}else speed=0;
+        position.y=0; verticalSpeed=null; wasFlying=false;
+        player.position.copy(position);player.rotation.y=rotation.y;return rotation.y;
+      }
       if (flying) {
         wasFlying = true; verticalSpeed = null; pitchRate = rollRate = 0;
         const heading = rotation.y - steer * delta * 1.6;
@@ -306,10 +347,10 @@ export function createCars(scene: THREE.Scene, world: World) {
         const limit = (pedal < 0 ? 9 : 24 * power) * wet * pace;
         const braking = pedal !== 0 && pedal * speed < -0.2;
         if (braking) {
-          const amount = (pace === 5 ? 66 : pace === 3 ? 44 : 22) * Math.abs(pedal) * delta;
+          const amount = (pace === 8 ? 88 : pace === 5 ? 66 : pace === 3 ? 44 : 22) * Math.abs(pedal) * delta;
           speed = Math.sign(speed) * Math.max(0, Math.abs(speed) - amount);
         } else if (pedal) {
-          speed += pedal * 8.5 * pace * (pace === 3 ? 2 : 1) * (boosting ? (pace === 5 ? 3.5 : 2.5) : 1) * delta;
+          speed += pedal * 8.5 * pace * (pace === 3 ? 2 : 1) * (boosting ? (pace === 8 ? 4 : pace === 5 ? 3.5 : 2.5) : 1) * delta;
         }
         const resistance = (1.1 + 0.012 * speed * speed + (1 - wet) * 12) * delta;
         speed = Math.sign(speed) * Math.max(0, Math.abs(speed) - resistance);
@@ -324,7 +365,9 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
       const x = position.x + (bumpX - Math.sin(yaw) * speed) * delta;
       const z = position.z + (bumpZ - Math.cos(yaw) * speed) * delta;
-      const collision = (x !== position.x || z !== position.z) && blocked(x, z, yaw);
+      let collision = false;
+      const travelSteps = Math.max(1,Math.ceil(Math.hypot(x-position.x,z-position.z)));
+      for(let i=1;i<=travelSteps;i++)if(blocked(THREE.MathUtils.lerp(position.x,x,i/travelSteps),THREE.MathUtils.lerp(position.z,z,i/travelSteps),yaw)){collision=true;break;}
       if (collision) {
         if (Math.abs(speed) > 2) sfx('crash');
         speed = 0;

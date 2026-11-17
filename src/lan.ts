@@ -76,6 +76,9 @@ export function createLan(
   let playerId = '';
   let carsAvailable = false;
   let flying = false;
+  let isAdmin = false;
+  let clientId: string = Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('');
+  try { clientId = localStorage.getItem('openworld3d.client') || clientId; localStorage.setItem('openworld3d.client',clientId); } catch {}
   const announcements = createAnnouncements();
   const life = createLife(scene, world, async social => {
     if (!token) return 404;
@@ -170,7 +173,7 @@ export function createLan(
 
     button.disabled = true;
     status.textContent = 'Conectando…';
-    const connection = new EventSource(serverUrl + '/lan/join?' + new URLSearchParams({ name }));
+    const connection = new EventSource(serverUrl + '/lan/join?' + new URLSearchParams({ name, clientId }));
     stream = connection;
 
     connection.addEventListener('ready', event => {
@@ -183,6 +186,7 @@ export function createLan(
       settings.setConnected(true, ready.moderation);
       playerId = ready.id;
       flying = false;
+      isAdmin = false;
       life.setConnected(ready.id, ready.sessionFeatures === true);
       carsAvailable = ready.spawnCars === true;
       cars.setDriver(ready.id);
@@ -206,12 +210,14 @@ export function createLan(
     connection.addEventListener('renamed', event => {
       input.value = (JSON.parse(event.data) as { name: string }).name;
     });
-    connection.addEventListener('kicked', () => {
+    connection.addEventListener('kicked', event => {
+      const removal = event.data ? JSON.parse(event.data) : {};
       connection.close();
       stream = null;
       token = null;
       announcements.clear();
       flying = false;
+      isAdmin = false;
       life.setConnected('', false);
       shop.setConnected(false);
       carsAvailable = false;
@@ -222,7 +228,7 @@ export function createLan(
       chat.setConnected(false);
       updatePlayers([]);
       button.disabled = false;
-      status.textContent = 'Un administrador te expulsó de la partida.';
+      status.textContent = removal.until ? 'Veto temporal por mensajes filtrados. Podrás volver a las ' + new Date(removal.until).toLocaleTimeString() + '.' : 'Un administrador te expulsó de la partida.';
       dialog.showModal();
     });
     connection.addEventListener('announcement', event => {
@@ -231,6 +237,7 @@ export function createLan(
     connection.addEventListener('permissions', event => {
       if (!token) return;
       const permissions = JSON.parse(event.data);
+      if(permissions.admin !== undefined)isAdmin=permissions.admin===true;
       chat.setFreeChat(permissions.freeChat === true);
       flying = permissions.flying === true;
     });
@@ -247,6 +254,7 @@ export function createLan(
       token = null;
       announcements.clear();
       flying = false;
+      isAdmin = false;
       life.setConnected('', false);
       shop.setConnected(false);
       carsAvailable = false;
@@ -274,17 +282,18 @@ export function createLan(
   dialog.showModal();
 
   return {
+    get admin() { return isAdmin; },
     get flying() { return flying; },
     get entering() { return dialog.open; },
     get settingsOpen() { return settings.open || shop.open || chat.typing || life.open; },
     get carsAvailable() { return carsAvailable; },
-    async ride(ride: string, vehicleType: 'car' | 'taxi' = 'car') {
+    async ride(ride: string, vehicleType: 'car' | 'taxi' | 'boat' | 'boat4' = 'car') {
       if (!token || !carsAvailable) return false;
       try {
         const response = await fetch(serverUrl + '/lan/move', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, ride, vehicleType, color: shop.color })
+          body: JSON.stringify({ token, ride, vehicleType, boatSpawn: ['boat','boat4'].includes(vehicleType) ? cars.boatSpawn(player.position,player.rotation.y) : undefined, color: shop.color })
         });
         return response.ok;
       } catch {
@@ -307,7 +316,7 @@ export function createLan(
       const { x, y, z } = player.position;
       const body = JSON.stringify({
         token, x, y, z, yaw: player.rotation.y, drivingCar: cars.drivingId,
-        ...cars.attitude, carImpact: cars.impactRevision, hat: shop.selected, color: shop.color
+        ...cars.attitude, carImpact: cars.impactRevision, speedMode: cars.speedMode, hat: shop.selected, color: shop.color
       });
       if (body === lastSent) return;
       sending = true;

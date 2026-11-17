@@ -134,6 +134,7 @@ export function moveCar(cars, car, { x, y, z, yaw }, now = performance.now(), st
 export function coastParkedCars(cars, dt) {
   let moved = false;
   for (const car of cars.values()) {
+    if (!car.driver && ['boat','boat4'].includes(car.kind)) {car.vx=car.vz=0;continue;}
     if (car.driver || Math.hypot(car.vx, car.vz) < 0.08) continue;
     const x = car.x + car.vx * dt;
     const z = car.z + car.vz * dt;
