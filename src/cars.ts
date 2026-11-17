@@ -79,6 +79,7 @@ export function createCars(scene: THREE.Scene, world: World) {
     mesh: THREE.Group; label: THREE.Sprite; state: CarState; lift: number; targetLift: number;
   }>();
   let wasFlying = false;
+  let jumpsUsed = 0, nitro = 1, nitroExhausted = false;
   let driverId = '';
   let speed = 0;
   let lastDriven: string | null = null;
@@ -114,9 +115,13 @@ export function createCars(scene: THREE.Scene, world: World) {
 
   return {
     jump() {
-      if (driven() && verticalSpeed === null) { verticalSpeed = RECOVERY_SPEED; sfx('jump'); }
+      if (!driven() || wasFlying || jumpsUsed >= 2) return;
+      jumpsUsed = verticalSpeed === null ? 1 : 2;
+      verticalSpeed = RECOVERY_SPEED; sfx('jump');
     },
     get attitude() { const car = driven(); return car ? { pitch: car.mesh.rotation.x, roll: car.mesh.rotation.z } : {}; },
+    get nitro() { return nitro; },
+    get speed() { return Math.abs(speed); },
     get driving() { return Boolean(driven()); },
     get drivingId() { return driven()?.state.id ?? null; },
     get impactRevision() { return driven()?.state.impact; },
@@ -183,7 +188,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
       return closest;
     },
-    update(player: THREE.Group, steering: number, throttle: number, delta: number, flying = false, verticalInput = 0) {
+    update(player: THREE.Group, steering: number, throttle: number, delta: number, flying = false, verticalInput = 0, boost = false, speedMode = 1) {
       const own = driven();
       const mix = 1 - Math.exp(-delta * 13);
       for (const car of cars.values()) {
@@ -209,12 +214,13 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
 
       if (!own) {
-        wasFlying = false;
+        wasFlying = false; jumpsUsed = 0; nitro = 1; nitroExhausted = false;
         if (lastDriven) {
           speed = 0;
           bumpX = 0;
           bumpZ = 0;
           verticalSpeed = null;
+          jumpsUsed = 0;
           groundVelocity = 0;
           steeringAngle = 0;
           pitchRate = rollRate = 0;
@@ -237,10 +243,16 @@ export function createCars(scene: THREE.Scene, world: World) {
       const { position, rotation } = mesh;
       const pedal = THREE.MathUtils.clamp(throttle, -1, 1);
       const steer = THREE.MathUtils.clamp(steering, -1, 1);
+      const pace = [0.65, 1, 1.35].includes(speedMode) ? speedMode : 1;
+      if (!boost) nitroExhausted = false;
+      const boosting = boost && pedal > 0 && nitro > 0 && !nitroExhausted;
+      nitro = THREE.MathUtils.clamp(nitro + (boosting ? -delta / 3 : delta / 6), 0, 1);
+      if (nitro === 0) nitroExhausted = true;
+      const power = boosting ? 1.65 : 1;
       if (flying) {
         wasFlying = true; verticalSpeed = null; pitchRate = rollRate = 0;
         const heading = rotation.y - steer * delta * 1.6;
-        speed = THREE.MathUtils.lerp(speed, pedal * 18, 1 - Math.exp(-delta * 3));
+        speed = THREE.MathUtils.lerp(speed, pedal * 18 * pace * power, 1 - Math.exp(-delta * 3));
         const nextX = position.x - Math.sin(heading) * speed * delta;
         const nextZ = position.z - Math.cos(heading) * speed * delta;
         if (position.y > world.groundHeight(nextX,nextZ)+18 || !blocked(nextX,nextZ,heading)) { position.x = nextX; position.z = nextZ; }
@@ -270,13 +282,13 @@ export function createCars(scene: THREE.Scene, world: World) {
       const slope = (ahead - floor) / 2;
       if (verticalSpeed === null) {
         const wet = waterSpeed(floor, 0.28);
-        const limit = (pedal < 0 ? 9 : 24) * wet;
+        const limit = (pedal < 0 ? 9 : 24 * power) * wet * pace;
         const braking = pedal !== 0 && pedal * speed < -0.2;
         if (braking) {
           const amount = 22 * Math.abs(pedal) * delta;
           speed = Math.sign(speed) * Math.max(0, Math.abs(speed) - amount);
         } else if (pedal) {
-          speed += pedal * 8.5 * delta;
+          speed += pedal * 8.5 * pace * (boosting ? 2.5 : 1) * delta;
         }
         const resistance = (1.1 + 0.012 * speed * speed + (1 - wet) * 12) * delta;
         speed = Math.sign(speed) * Math.max(0, Math.abs(speed) - resistance);
@@ -332,6 +344,7 @@ export function createCars(scene: THREE.Scene, world: World) {
           sfx(ground < 0 ? 'splash' : 'land');
           position.y = contactHeight;
           verticalSpeed = null;
+          jumpsUsed = 0;
           groundVelocity = 0;
           pitchRate = rollRate = 0;
           rotation.x = Math.atan2(Math.sin(rotation.x), Math.cos(rotation.x));

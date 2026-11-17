@@ -1,3 +1,4 @@
+import { createDrivingHud } from './driving-hud';
 import { hitsHouse } from './life';
 import { setupTextures } from './textures';
 import { createGamepad } from './gamepad';
@@ -124,6 +125,8 @@ let yaw = 0;
 let pitch = 0;
 let verticalVelocity = 0;
 let grounded = true;
+let jumpsUsed = 0;
+const drivingHud = createDrivingHud();
 let jumpQueued = false;
 const keys = new Set<string>();
 let flyUp = false, flyDown = false, flyPulse = 0;
@@ -222,6 +225,7 @@ const gamepad = createGamepad({
 
 window.addEventListener('keydown', (event) => {
   if (lan.entering || (lan.settingsOpen || arcade.open || gamepad.open)) return;
+  if (event.target instanceof HTMLSelectElement) return;
   if (event.code === 'KeyE' && !event.repeat) {
     void toggleRide();
     return;
@@ -329,11 +333,14 @@ function animate(time: number) {
   if (lan.flying && jumpQueued) flyPulse = 0.25;
   flyPulse = Math.max(0, flyPulse - delta);
   const verticalInput = (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : Number(flyUp || flyPulse > 0 || keys.has('Space')) - Number(flyDown || keys.has('ControlLeft') || keys.has('ControlRight'));
-  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveX, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveZ, delta, lan.flying, verticalInput);
+  const boost = !lan.entering && !lan.settingsOpen && !arcade.open && !gamepad.open && (drivingHud.boost || gamepad.input.running || keys.has('ShiftLeft') || keys.has('ShiftRight'));
+  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveX, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveZ, delta, lan.flying, verticalInput, boost, drivingHud.speedMode);
+  drivingHud.update(time, cars.driving, cars.nitro, cars.speed);
   const driving = carYaw !== null;
   if (driving) {
     verticalVelocity = 0;
     grounded = true;
+    jumpsUsed = 0;
   }
   player.visible = thirdPerson && !driving;
   const showCarAction = lan.carsAvailable && (driving || Boolean(cars.nearby(player.position)));
@@ -360,8 +367,9 @@ function animate(time: number) {
 
   world.update(position.x, position.z);
   const floor = world.groundHeight(position.x, position.z);
-  if (!driving && !lan.flying && (jumpQueued || keys.has('Space')) && grounded) {
+  if (!driving && !lan.flying && jumpQueued && (grounded || jumpsUsed < 2)) {
     position.y = Math.max(position.y, floor);
+    jumpsUsed = grounded ? 1 : 2;
     verticalVelocity = JUMP_FORCE;
     grounded = false;
     sfx('jump');
@@ -382,6 +390,7 @@ function animate(time: number) {
     grounded = position.y <= floor;
     if (landed) sfx(floor < 0 ? 'splash' : 'land');
     if (grounded) {
+      jumpsUsed = 0;
       position.y = floor;
       verticalVelocity = 0;
     }

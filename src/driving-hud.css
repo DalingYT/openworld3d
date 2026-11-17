@@ -1,0 +1,4 @@
+#driving-hud:not([hidden]) { display:inline-flex; align-items:center; flex-wrap:wrap; gap:6px; max-width: min(390px, 90vw); padding:6px; border-radius:8px; background:#162739e8; color:white; font:12px system-ui; }
+#driving-hud select { min-height:36px; max-width:110px; background:#294260; color:white; border:1px solid #7e9ab1; border-radius:6px; }
+#driving-hud button { touch-action:none; min-height:44px; }
+#driving-hud progress { width:58px; accent-color:#39ccee; }
