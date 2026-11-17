@@ -112,6 +112,8 @@ export function createCars(scene: THREE.Scene, world: World) {
   }>();
   let wasFlying = false;
   let activeMode = 1;
+  let wasNoclip = false;
+  const safeCarPosition = new THREE.Vector3();
   let jumpsUsed = 0, nitro = 1, nitroExhausted = false;
   let driverId = '';
   let speed = 0;
@@ -258,7 +260,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
       return closest;
     },
-    update(player: THREE.Group, steering: number, throttle: number, delta: number, flying = false, verticalInput = 0, boost = false, speedMode = 1, admin = false) {
+    update(player: THREE.Group, steering: number, throttle: number, delta: number, flying = false, verticalInput = 0, boost = false, speedMode = 1, admin = false, noclip = false) {
       const own = driven();
       const mix = 1 - Math.exp(-delta * 13);
       for (const car of cars.values()) {
@@ -319,6 +321,10 @@ export function createCars(scene: THREE.Scene, world: World) {
       const { mesh, state } = own;
       lastDriven = state.id;
       const { position, rotation } = mesh;
+      const ghost = admin && noclip;
+      if(wasNoclip && !ghost && blocked(position.x,position.z,rotation.y)){position.copy(safeCarPosition);speed=0;}
+      if(!blocked(position.x,position.z,rotation.y))safeCarPosition.copy(position);
+      wasNoclip=ghost;
       const pedal = THREE.MathUtils.clamp(throttle, -1, 1);
       const steer = THREE.MathUtils.clamp(steering, -1, 1);
       const pace = [0.65, 1, 1.35, 3, 5, ...(admin ? [8] : [])].includes(speedMode) ? speedMode : 1;
@@ -344,7 +350,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         speed = THREE.MathUtils.lerp(speed, pedal * 18 * pace * power, 1 - Math.exp(-delta * 3));
         const nextX = position.x - Math.sin(heading) * speed * delta;
         const nextZ = position.z - Math.cos(heading) * speed * delta;
-        if (position.y > world.groundHeight(nextX,nextZ)+18 || !blocked(nextX,nextZ,heading)) { position.x = nextX; position.z = nextZ; }
+        if (ghost || position.y > world.groundHeight(nextX,nextZ)+18 || !blocked(nextX,nextZ,heading)) { position.x = nextX; position.z = nextZ; }
         position.y = THREE.MathUtils.clamp(position.y + verticalInput * 8 * delta, world.groundHeight(position.x,position.z), Math.max(200,world.groundHeight(position.x,position.z)));
         rotation.set(0,heading,0,'YXZ'); bumpX = bumpZ = 0;
         player.position.copy(position); player.rotation.y = heading;
@@ -394,7 +400,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       const z = position.z + (bumpZ - Math.cos(yaw) * speed) * delta;
       let collision = false;
       const travelSteps = Math.max(1,Math.ceil(Math.hypot(x-position.x,z-position.z)));
-      for(let i=1;i<=travelSteps;i++)if(blocked(THREE.MathUtils.lerp(position.x,x,i/travelSteps),THREE.MathUtils.lerp(position.z,z,i/travelSteps),yaw)){collision=true;break;}
+      for(let i=1;!ghost && i<=travelSteps;i++)if(blocked(THREE.MathUtils.lerp(position.x,x,i/travelSteps),THREE.MathUtils.lerp(position.z,z,i/travelSteps),yaw)){collision=true;break;}
       if (collision) {
         if (Math.abs(speed) > 2) sfx('crash');
         speed = 0;

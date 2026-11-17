@@ -321,6 +321,11 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
 
   function moderate(player, { action, targetId, name, text }, response) {
     if (!player.admin) return response.writeHead(403).end();
+    if (action === 'noclip' || action === 'clip') {
+      player.noclip = action === 'noclip';
+      send(player.response,'permissions',{admin:true,freeChat:true,flying:Boolean(player.flying),noclip:player.noclip});
+      return response.writeHead(204).end();
+    }
     if (action === 'announce') {
       if (typeof text !== 'string' || !text.trim() || text.trim().length > 160 || /[\p{Cc}\p{Cf}]/u.test(text)) return response.writeHead(400).end();
       if (Date.now() - lastAnnouncement < 5000) return response.writeHead(429).end();

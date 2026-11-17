@@ -146,7 +146,9 @@ for (const [label, up] of [['Volar ↑', true], ['Bajar ↓', false]] as const) 
 }
 document.querySelector('#car-controls')!.append(flyControls);
 window.addEventListener('blur',()=>{flyUp=flyDown=false;});
-const blockedAt = (x:number,z:number,radius:number) => (lan.flying && player.position.y > world.groundHeight(x,z)+18) ? false : hitsBuilding(x,z,radius) || hitsHouse(x,z,radius,false,player.position.x,player.position.z);
+const safeWalkPosition = player.position.clone();
+let wasNoclip = false;
+const blockedAt = (x:number,z:number,radius:number) => lan.noclip ? false : (lan.flying && player.position.y > world.groundHeight(x,z)+18) ? false : hitsBuilding(x,z,radius) || hitsHouse(x,z,radius,false,player.position.x,player.position.z);
 const cameraButton = document.querySelector<HTMLButtonElement>('#touch-camera')!;
 const carAction = document.querySelector<HTMLButtonElement>('#car-action')!;
 const carActionText = carAction.querySelector('b')!;
@@ -333,6 +335,10 @@ function animate(time: number) {
   tiendini.hidden = lan.entering || cars.riding || lan.settingsOpen || arcade.open || gamepad.open || Math.hypot(player.position.x + 24, player.position.z + 51) > 4;
   arcade.update(player.position, !lan.entering && !cars.riding && !lan.settingsOpen, time);
   if (lan.settingsOpen || arcade.open || gamepad.open) { keys.clear(); jumpQueued = false; }
+  const insideWall = hitsBuilding(player.position.x,player.position.z,.45) || hitsHouse(player.position.x,player.position.z,.45,true);
+  if(wasNoclip && !lan.noclip && !cars.riding && insideWall)player.position.copy(safeWalkPosition);
+  if(!insideWall && !cars.riding)safeWalkPosition.copy(player.position);
+  wasNoclip=lan.noclip;
   const previousX = player.position.x, previousZ = player.position.z;
   const moveX = Number(keys.has('KeyD')) - Number(keys.has('KeyA')) + gamepad.input.x + ((lan.settingsOpen || arcade.open || gamepad.open) ? 0 : touch.x);
   const moveZ = Number(keys.has('KeyW')) - Number(keys.has('KeyS')) + gamepad.input.y + ((lan.settingsOpen || arcade.open || gamepad.open) ? 0 : touch.y);
@@ -345,7 +351,7 @@ function animate(time: number) {
   flyPulse = Math.max(0, flyPulse - delta);
   const verticalInput = (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : Number(flyUp || flyPulse > 0 || keys.has('Space')) - Number(flyDown || keys.has('ControlLeft') || keys.has('ControlRight'));
   const boost = !lan.entering && !lan.settingsOpen && !arcade.open && !gamepad.open && (drivingHud.boost || gamepad.input.running || keys.has('ShiftLeft') || keys.has('ShiftRight'));
-  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveX, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveZ, delta, lan.flying, verticalInput, boost, drivingHud.speedMode, lan.admin);
+  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveX, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveZ, delta, lan.flying, verticalInput, boost, drivingHud.speedMode, lan.admin, lan.noclip);
   drivingHud.update(time, cars.driving, cars.nitro, cars.speed, lan.admin);
   const driving = carYaw !== null;
   if (driving) {

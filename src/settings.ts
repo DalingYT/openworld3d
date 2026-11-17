@@ -1,7 +1,7 @@
 import './settings.css';
 
 type Player = { id: string; name: string; freeChat?: boolean };
-type AdminRequest = { code: string } | {action:'announce';text:string} | { action: 'kick' | 'rename' | 'chat_allow' | 'chat_block' | 'fly' | 'unfly'; targetId: string; name?: string };
+type AdminRequest = { code: string } | {action:'announce';text:string} | {action:'noclip'|'clip'} | { action: 'kick' | 'rename' | 'chat_allow' | 'chat_block' | 'fly' | 'unfly'; targetId: string; name?: string };
 
 export function createSettings(request: (data: AdminRequest) => Promise<number>) {
   const trigger = document.querySelector<HTMLButtonElement>('#game-settings')!;
@@ -111,10 +111,20 @@ export function createSettings(request: (data: AdminRequest) => Promise<number>)
     button.addEventListener('click', () => { void moderate(action); });
     kick.parentElement!.append(button);
   }
-  document.querySelector('#admin-command-help')!.textContent = '/anuncio mensaje (máx. 160 caracteres) · /fly me · /unfly me · /fly apodo · /kick · /rename apodo';
+  async function setNoclip(action:'noclip'|'clip') {
+    if(busy || adminTrigger.hidden)return;
+    const requestSession=session;busy=true;
+    try {const result=await request({action});if(requestSession===session)resultStatus.textContent=result===204?(action==='noclip'?'Atravesar paredes activado.':'Colisiones activadas; salir de paredes te devuelve a un lugar libre.'):'No se pudo cambiar el modo.';}
+    finally {if(requestSession===session)busy=false;}
+  }
+  for(const [action,label] of [['noclip','Atravesar paredes'],['clip','Restaurar colisiones']] as const){
+    const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>void setNoclip(action);kick.parentElement!.append(button);
+  }
+  document.querySelector('#admin-command-help')!.textContent = '/noclip · /clip · /anuncio mensaje (máx. 160 caracteres) · /fly me · /unfly me · /fly apodo · /kick · /rename apodo';
   commands.addEventListener('submit', async event => {
     event.preventDefault();
     const text = command.value.trim();
+    if(text==='/noclip'||text==='/clip'){await setNoclip(text.slice(1) as 'noclip'|'clip');command.value='';return;}
     const announcement = /^\/(?:anuncio|announce)(?:\s+(.*))?$/.exec(text);
     if (announcement) {
       if (busy || adminTrigger.hidden) return;
