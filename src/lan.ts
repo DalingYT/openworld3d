@@ -84,6 +84,8 @@ export function createLan(
   let isAdmin = false;
   let noclip = false;
   let groundCar = false;
+  let waterproof = false;
+  let reloadPending = false;
   let clientId: string = Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('');
   try { clientId = localStorage.getItem('openworld3d.client') || clientId; localStorage.setItem('openworld3d.client',clientId); } catch {}
   const announcements = createAnnouncements();
@@ -196,7 +198,7 @@ export function createLan(
       playerId = ready.id;
       vehicleRoster.setSelf(ready.id,name);
       flying = false;
-      isAdmin = false; noclip = false; groundCar = false;
+      isAdmin = false; noclip = false; groundCar = false; waterproof = false;
       life.setConnected(ready.id, ready.sessionFeatures === true);
       carsAvailable = ready.spawnCars === true;
       cars.setDriver(ready.id);
@@ -228,7 +230,7 @@ export function createLan(
       token = null;
       announcements.clear();
       flying = false;
-      isAdmin = false; noclip = false; groundCar = false;
+      isAdmin = false; noclip = false; groundCar = false; waterproof = false;
       life.setConnected('', false);
       shop.setConnected(false);
       carsAvailable = false;
@@ -243,12 +245,20 @@ export function createLan(
       status.textContent = removal.reason ?? (removal.until ? 'Veto temporal por mensajes filtrados. Podrás volver a las ' + new Date(removal.until).toLocaleTimeString() + '.' : 'Un administrador te expulsó de la partida.');
       dialog.showModal();
     });
+    connection.addEventListener('teleport', event => {if(token){const data=JSON.parse(event.data);spawn(data.x,data.z);cars.teleport(data.x,data.z);lastSent='';}});
+    connection.addEventListener('reload', () => {
+      if(!token || reloadPending)return;
+      reloadPending=true;
+      announcements.show('Sistema','Un administrador recargará la partida para todos en 3 segundos. Se reiniciará tu sesión.');
+      window.setTimeout(()=>location.reload(),3000);
+    });
     connection.addEventListener('announcement', event => {
       if (token) { const data = JSON.parse(event.data); announcements.show(data.name, data.text); }
     });
     connection.addEventListener('permissions', event => {
       if (!token) return;
       const permissions = JSON.parse(event.data);
+      if(permissions.waterproof !== undefined)waterproof=permissions.waterproof===true;
       if(permissions.groundCar !== undefined)groundCar=permissions.groundCar===true;
       if(permissions.noclip !== undefined)noclip=permissions.noclip===true;
       if(permissions.admin !== undefined)isAdmin=permissions.admin===true;
@@ -268,7 +278,7 @@ export function createLan(
       token = null;
       announcements.clear();
       flying = false;
-      isAdmin = false; noclip = false; groundCar = false;
+      isAdmin = false; noclip = false; groundCar = false; waterproof = false;
       life.setConnected('', false);
       shop.setConnected(false);
       carsAvailable = false;
@@ -297,8 +307,9 @@ export function createLan(
   dialog.showModal();
 
   return {
-    get groundCar() { return isAdmin && groundCar; },
-    get noclip() { return isAdmin && noclip; },
+    get waterproof() { return waterproof; },
+    get groundCar() { return groundCar; },
+    get noclip() { return noclip; },
     get admin() { return isAdmin; },
     get flying() { return flying; },
     get entering() { return dialog.open; },

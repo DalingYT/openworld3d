@@ -351,7 +351,7 @@ function animate(time: number) {
   flyPulse = Math.max(0, flyPulse - delta);
   const verticalInput = (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : Number(flyUp || flyPulse > 0 || keys.has('Space')) - Number(flyDown || keys.has('ControlLeft') || keys.has('ControlRight'));
   const boost = !lan.entering && !lan.settingsOpen && !arcade.open && !gamepad.open && (drivingHud.boost || gamepad.input.running || keys.has('ShiftLeft') || keys.has('ShiftRight'));
-  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveX, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveZ, delta, lan.flying, verticalInput, boost, drivingHud.speedMode, lan.admin, lan.noclip, lan.groundCar);
+  const carYaw = cars.update(player, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveX, (lan.settingsOpen || arcade.open || gamepad.open) ? 0 : moveZ, delta, lan.flying, verticalInput, boost, drivingHud.speedMode, lan.admin, lan.noclip, lan.groundCar, lan.waterproof);
   drivingHud.update(time, cars.driving, cars.nitro, cars.speed, lan.admin);
   const driving = carYaw !== null;
   if (driving) {

@@ -161,6 +161,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
       return null;
     },
+    teleport(x:number,z:number) {const car=driven();if(car){car.mesh.position.set(x,world.groundHeight(x,z),z);speed=bumpX=bumpZ=0;verticalSpeed=null;groundVelocity=0;safeCarPosition.copy(car.mesh.position);}} ,
     get speedMode() { return activeMode; },
     setFirstPerson(enabled: boolean) {
       const current = ridden();
@@ -261,8 +262,8 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
       return closest;
     },
-    update(player: THREE.Group, steering: number, throttle: number, delta: number, flying = false, verticalInput = 0, boost = false, speedMode = 1, admin = false, noclip = false, groundCar = false) {
-      stickToGround = admin && groundCar;
+    update(player: THREE.Group, steering: number, throttle: number, delta: number, flying = false, verticalInput = 0, boost = false, speedMode = 1, admin = false, noclip = false, groundCar = false, waterproof = false) {
+      stickToGround = groundCar;
       const own = driven();
       const mix = 1 - Math.exp(-delta * 13);
       for (const car of cars.values()) {
@@ -323,7 +324,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       const { mesh, state } = own;
       lastDriven = state.id;
       const { position, rotation } = mesh;
-      const ghost = admin && noclip;
+      const ghost = noclip;
       if(wasNoclip && !ghost && blocked(position.x,position.z,rotation.y)){position.copy(safeCarPosition);speed=0;}
       if(!blocked(position.x,position.z,rotation.y))safeCarPosition.copy(position);
       wasNoclip=ghost;
@@ -379,7 +380,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       const ahead = world.groundHeight(position.x + fx * 2, position.z + fz * 2);
       const slope = (ahead - floor) / 2;
       if (verticalSpeed === null) {
-        const wet = waterSpeed(floor, 0.28);
+        const wet = waterproof ? 1 : waterSpeed(floor, 0.28);
         const limit = (pedal < 0 ? 9 : 24 * power) * wet * pace;
         const braking = pedal !== 0 && pedal * speed < -0.2;
         if(pace === 30) {

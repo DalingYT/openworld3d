@@ -1,9 +1,9 @@
 import './settings.css';
 
 type Player = { id: string; name: string; freeChat?: boolean };
-type AdminRequest = { code: string } | {action:'announce';text:string} | {action:'noclip'|'clip'|'groundcar'|'freecar'} | { action: 'kick' | 'rename' | 'chat_allow' | 'chat_block' | 'fly' | 'unfly'; targetId: string; name?: string };
+type AdminRequest = {action:'tp'|'bring';targetId:string} | { code: string } | {action:'announce';text:string} | {action:'noclip'|'clip'|'groundcar'|'freecar'|'waterproof'|'waternormal'|'reloadall';targetId?:string} | { action: 'kick' | 'rename' | 'chat_allow' | 'chat_block' | 'fly' | 'unfly'; targetId: string; name?: string };
 
-export function createSettings(request: (data: AdminRequest) => Promise<number>) {
+export function createSettings(sendRequest: (data: AdminRequest) => Promise<number>) {
   const trigger = document.querySelector<HTMLButtonElement>('#game-settings')!;
   const adminTrigger = document.querySelector<HTMLButtonElement>('#game-admin')!;
   const dialog = document.querySelector<HTMLDialogElement>('#settings-panel')!;
@@ -49,6 +49,20 @@ export function createSettings(request: (data: AdminRequest) => Promise<number>)
   commands.querySelector('label')!.textContent = 'Comando de administrador';
   const resultStatus = adminPanel.querySelector<HTMLElement>('#moderation-status')!;
   const select = moderation.querySelector<HTMLSelectElement>('select')!;
+  select.multiple=true;select.size=5;
+  select.setAttribute('aria-label','Jugadores seleccionados; permite varios');
+  function selectedTargets() {
+    const chosen=Array.from(select.selectedOptions).map(o=>o.value).filter(Boolean);
+    return chosen.includes('all') ? ['me',...players.map(p=>p.id)] : chosen.length?chosen:['me'];
+  }
+  async function request(data:AdminRequest, targets?:string[]) {
+    if(!('action' in data) || data.action==='announce')return sendRequest(data);
+    const ids=targets ?? ('targetId' in data && data.targetId ? [data.targetId] : selectedTargets());
+    let result=204;
+    for(const id of ids){if(id==='me' && ['kick','rename','chat_allow','chat_block','tp'].includes(data.action))continue;const status=await sendRequest({...data,targetId:id});if(status!==204)result=status;}
+    return result;
+  }
+
   const nickname = moderation.querySelector<HTMLInputElement>('input')!;
   const kick = moderation.querySelector<HTMLButtonElement>('#admin-kick')!;
   let players: Player[] = [];
@@ -62,19 +76,19 @@ export function createSettings(request: (data: AdminRequest) => Promise<number>)
     const list = JSON.stringify(players);
     if (list === playerList) return;
     playerList = list;
-    const selected = select.value;
-    select.replaceChildren(new Option('Selecciona un jugador', ''), new Option('Yo (vuelo)', 'me'));
+    const selected = new Set(Array.from(select.selectedOptions).map(o=>o.value));
+    select.replaceChildren(new Option('Selecciona un jugador', ''), new Option('Yo', 'me'), new Option('Todos', 'all'));
     for (const player of players) {
       const duplicate = players.some(other => other !== player && other.name === player.name);
       select.add(new Option((duplicate ? player.name + ' · ' + player.id.slice(0, 5) : player.name) + (player.freeChat ? ' (chat libre)' : ''), player.id));
     }
-    select.value = selected === 'me' || players.some(player => player.id === selected) ? selected : '';
+    for(const option of select.options)option.selected=selected.has(option.value);
   }
 
   async function moderate(action: 'kick' | 'rename' | 'chat_allow' | 'chat_block' | 'fly' | 'unfly', name = nickname.value.trim(), targetOverride?: string) {
     if (busy || adminTrigger.hidden) return false;
     const targetId = targetOverride ?? select.value;
-    const target = targetId === 'me' && (action === 'fly' || action === 'unfly') ? {id:'me',name:'Yo'} : players.find(player => player.id === targetId);
+    const target = (targetId === 'all' || targetId === 'me') && (action === 'fly' || action === 'unfly' || targetId==='all') ? {id:targetId,name:targetId==='all'?'Todos':'Yo'} : players.find(player => player.id === targetId);
     if (!target) {
       select.focus();
       resultStatus.textContent = 'Selecciona un jugador.';
@@ -87,7 +101,7 @@ export function createSettings(request: (data: AdminRequest) => Promise<number>)
     if (action === 'kick' && !window.confirm('¿Expulsar a ' + target.name + ' de la partida?')) return false;
     const requestSession = session;
     busy = true;
-    const result = await request({ action, targetId: target.id, name });
+    const result = await request({ action, targetId: target.id, name }, targetOverride ? [target.id] : selectedTargets());
     if (requestSession !== session) return false;
     busy = false;
     if (result === 204) {
@@ -111,20 +125,31 @@ export function createSettings(request: (data: AdminRequest) => Promise<number>)
     button.addEventListener('click', () => { void moderate(action); });
     kick.parentElement!.append(button);
   }
-  async function setNoclip(action:'noclip'|'clip'|'groundcar'|'freecar') {
+  async function setNoclip(action:'noclip'|'clip'|'groundcar'|'freecar'|'waterproof'|'waternormal'|'reloadall') {
     if(busy || adminTrigger.hidden)return;
+    if(action==='reloadall' && !window.confirm('¿Recargar la página de los jugadores seleccionados? Se perderán sus monedas, casas y amigos de la sesión.'))return;
     const requestSession=session;busy=true;
-    try {const result=await request({action});if(requestSession===session)resultStatus.textContent=result===204?(action==='groundcar'?'Carro pegado al suelo. Saltos y vuelo desactivados mientras esté activo.':action==='freecar'?'Físicas normales del carro restauradas.':action==='noclip'?'Atravesar paredes activado.':'Colisiones activadas; salir de paredes te devuelve a un lugar libre.'):'No se pudo cambiar el modo.';}
+    try {const result=await request({action});if(requestSession===session)resultStatus.textContent=result===204?(action==='reloadall'?'Recarga global enviada.':action==='waterproof'?'El agua ya no ralentiza tu carro.':action==='waternormal'?'Efecto del agua restaurado.':action==='groundcar'?'Carro pegado al suelo. Saltos y vuelo desactivados mientras esté activo.':action==='freecar'?'Físicas normales del carro restauradas.':action==='noclip'?'Atravesar paredes activado.':'Colisiones activadas; salir de paredes te devuelve a un lugar libre.'):'No se pudo cambiar el modo.';}
     finally {if(requestSession===session)busy=false;}
   }
-  for(const [action,label] of [['noclip','Atravesar paredes'],['clip','Restaurar colisiones'],['groundcar','Pegar carro al suelo'],['freecar','Soltar carro del suelo']] as const){
+  for(const [action,label] of [['noclip','Atravesar paredes'],['clip','Restaurar colisiones'],['groundcar','Pegar carro al suelo'],['freecar','Soltar carro del suelo'],['waterproof','Ignorar agua'],['waternormal','Restaurar efecto del agua'],['reloadall','Recargar seleccionados']] as const){
     const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>void setNoclip(action);kick.parentElement!.append(button);
   }
-  document.querySelector('#admin-command-help')!.textContent = '/groundcar · /freecar · /noclip · /clip · /anuncio mensaje (máx. 160 caracteres) · /fly me · /unfly me · /fly apodo · /kick · /rename apodo';
+  async function teleport(action:'tp'|'bring',targetId:string) {
+    if(busy || adminTrigger.hidden)return;
+    if(!targetId || targetId==='me'){resultStatus.textContent='Selecciona un jugador.';return;}
+    if(targetId==='all' && !window.confirm('¿Traer a todos los jugadores hacia ti?'))return;
+    busy=true;const requestSession=session;
+    try{const result=await request({action,targetId}, targetId==='all'?['all']:targetId===select.value?selectedTargets():[targetId]);if(session===requestSession)resultStatus.textContent=result===204?'Teletransporte enviado.':'No se pudo teletransportar; comprueba que el jugador siga conectado.';}finally{if(session===requestSession)busy=false;}
+  }
+  for(const [action,label,all] of [['tp','Ir al jugador',false],['bring','Traer jugador',false],['bring','Traer a todos',true]] as const){const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>void teleport(action,all?'all':select.value);kick.parentElement!.append(button);}
+  document.querySelector('#admin-command-help')!.textContent = '/tp apodo · /bring apodo · /bring all · /waterproof · /waternormal · /reloadall · /groundcar · /freecar · /noclip · /clip · /anuncio mensaje (máx. 160 caracteres) · /fly me · /unfly me · /fly apodo · /kick · /rename apodo';
   commands.addEventListener('submit', async event => {
     event.preventDefault();
     const text = command.value.trim();
-    if(['/noclip','/clip','/groundcar','/freecar'].includes(text)){await setNoclip(text.slice(1) as 'noclip'|'clip'|'groundcar'|'freecar');command.value='';return;}
+    if(['/noclip','/clip','/groundcar','/freecar','/waterproof','/waternormal','/reloadall'].includes(text)){await setNoclip(text.slice(1) as 'noclip'|'clip'|'groundcar'|'freecar'|'waterproof'|'waternormal'|'reloadall');command.value='';return;}
+    const tp=/^\/(tp|bring)(?:\s+(.+))?$/.exec(text);
+    if(tp){const name=tp[2];const matches=players.filter(p=>p.name.toLowerCase()===name?.toLowerCase());const target=tp[1]==='bring'&&name==='all'?'all':!name?select.value:matches.length===1?matches[0].id:'';await teleport(tp[1] as 'tp'|'bring',target);return;}
     const announcement = /^\/(?:anuncio|announce)(?:\s+(.*))?$/.exec(text);
     if (announcement) {
       if (busy || adminTrigger.hidden) return;
@@ -146,7 +171,7 @@ export function createSettings(request: (data: AdminRequest) => Promise<number>)
     if (flight) {
       const name = flight[2];
       const matches = name ? players.filter(p => p.name.toLowerCase() === name.toLowerCase()) : [];
-      const target = !name ? select.value : ['me','yo'].includes(name.toLowerCase()) ? 'me' : matches.length === 1 ? matches[0].id : '';
+      const target = name==='all' ? 'all' : !name ? select.value : ['me','yo'].includes(name.toLowerCase()) ? 'me' : matches.length === 1 ? matches[0].id : '';
       if (!target) { resultStatus.textContent = 'Selecciona un jugador o usa /fly me; si el apodo se repite usa el selector.'; return; }
       if (await moderate(flight[1] as 'fly' | 'unfly', '', target)) command.value = '';
       return;

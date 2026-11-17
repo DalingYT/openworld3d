@@ -321,14 +321,40 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
 
   function moderate(player, { action, targetId, name, text }, response) {
     if (!player.admin) return response.writeHead(403).end();
-    if (action === 'groundcar' || action === 'freecar') {
-      player.groundCar = action === 'groundcar';
-      send(player.response,'permissions',{admin:true,freeChat:true,flying:Boolean(player.flying),groundCar:player.groundCar});
+    const effects={fly:['flying',true],unfly:['flying',false],noclip:['noclip',true],clip:['noclip',false],groundcar:['groundCar',true],freecar:['groundCar',false],waterproof:['waterproof',true],waternormal:['waterproof',false]};
+    if(Object.hasOwn(effects,action) || action==='reloadall') {
+      const recipients=targetId==='all' || (action==='reloadall' && targetId===undefined) ? [...players.values()] : targetId && targetId!=='me' ? [...players.values()].filter(p=>p.id===targetId) : [player];
+      if(!recipients.length)return response.writeHead(404).end();
+      for(const recipient of recipients){
+        if(action==='reloadall'){send(recipient.response,'reload',{delay:3000});continue;}
+        const [key,value]=effects[action];recipient[key]=value;
+        send(recipient.response,'permissions',{admin:Boolean(recipient.admin),freeChat:Boolean(recipient.admin||recipient.freeChat),flying:Boolean(recipient.flying),noclip:Boolean(recipient.noclip),groundCar:Boolean(recipient.groundCar),waterproof:Boolean(recipient.waterproof)});
+      }
       return response.writeHead(204).end();
     }
-    if (action === 'noclip' || action === 'clip') {
-      player.noclip = action === 'noclip';
-      send(player.response,'permissions',{admin:true,freeChat:true,flying:Boolean(player.flying),noclip:player.noclip});
+    if(action === 'tp' || action === 'bring') {
+      const target=[...players.values()].find(p=>p.id===targetId && p!==player);
+      const everyone=action==='bring' && targetId==='all';
+      if(!player.state || (!everyone && !target?.state))return response.writeHead(404).end();
+      const anchor=action==='tp'?target:player;
+      const anchorCar=cars.get(anchor.car);
+      const origin=anchorCar??anchor.state;
+      const moving=action==='tp'?[player]:everyone?[...players.values()].filter(p=>p!==player&&p.state):[target];
+      let index=0;
+      for(const person of moving) {
+        const car=cars.get(person.car);
+        if(car && car.driver!==person.id && moving.some(p=>p.id===car.driver))continue;
+        if(car && car.driver!==person.id)leaveCar(person);
+        let destination;
+        for(let attempt=0;attempt<40;attempt++){
+          const angle=(index+attempt)*2.4,radius=6+Math.floor((index+attempt)/8)*5;
+          const x=origin.x+Math.cos(angle)*radius,z=origin.z+Math.sin(angle)*radius;
+          if(carSpaceFree(cars,x,z,0,car)){destination={x,y:origin.y??0,z,yaw:0};index+=attempt+1;break;}
+        }
+        if(!destination)continue;
+        if(car?.driver===person.id){Object.assign(car,destination,{vx:0,vz:0,pitch:0,roll:0});car.impact++;carsDirty=true;}
+        person.state=destination;send(person.response,'teleport',destination);dirty=true;
+      }
       return response.writeHead(204).end();
     }
     if (action === 'announce') {
@@ -338,14 +364,6 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       if(filtered.until)return response.writeHead(403).end();
       lastAnnouncement = Date.now();
       for (const recipient of players.values()) send(recipient.response, 'announcement', {name:player.name,text:filtered.text});
-      return response.writeHead(204).end();
-    }
-    if (action === 'fly' || action === 'unfly') {
-      const target = targetId === 'me' ? player : [...players.values()].find(q => q.id === targetId);
-      if (!target) return response.writeHead(404).end();
-      target.flying = action === 'fly';
-      send(target.response, 'permissions', {freeChat:Boolean(target.admin || target.freeChat), flying:target.flying});
-      features.broadcast();
       return response.writeHead(204).end();
     }
     if (!['rename', 'kick', 'chat_allow', 'chat_block'].includes(action)) return response.writeHead(400).end();

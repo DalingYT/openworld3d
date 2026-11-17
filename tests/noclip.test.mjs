@@ -10,12 +10,27 @@ try {
  const pa=await a.read('ready'),pb=await b.read('ready');
  const send=async(p,path,data)=>(await fetch(url+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:p.token,...data})})).status;
  assert.equal(await send(pb,'/lan/admin',{action:'noclip'}),403);
+ assert.equal(await send(pb,'/lan/admin',{action:'waterproof'}),403);
+ assert.equal(await send(pb,'/lan/admin',{action:'reloadall'}),403);
  assert.equal(await send(pb,'/lan/admin',{action:'groundcar'}),403);
  assert.equal(await send(pb,'/lan/move',{x:0,y:0,z:0,yaw:0,speedMode:30}),403);
  assert.equal(await send(pb,'/lan/move',{text:'Forbidden'}),403);
  assert.equal(await send(pb,'/lan/admin',{action:'chat_allow',targetId:pb.id}),403);
  assert.equal(await send(pa,'/lan/admin',{code:'12345678'}),204);
  assert.equal((await a.read('permissions')).freeChat,true);
+ for(const [action,key] of [['noclip','noclip'],['groundcar','groundCar'],['waterproof','waterproof']]) {
+  assert.equal(await send(pa,'/lan/admin',{action,targetId:pb.id}),204);
+  const permission=await b.read('permissions');assert.equal(permission[key],true);assert.equal(permission.admin,false);
+ }
+ for(const action of ['clip','freecar','waternormal']){await send(pa,'/lan/admin',{action,targetId:pb.id});await b.read('permissions');}
+ await send(pa,'/lan/move',{x:2000,y:0,z:0,yaw:0});await send(pb,'/lan/move',{x:2100,y:0,z:0,yaw:0});
+ assert.equal(await send(pb,'/lan/admin',{action:'bring',targetId:'all'}),403);
+ assert.equal(await send(pa,'/lan/admin',{action:'bring',targetId:pb.id}),204);const moved=await b.read('teleport');assert(Math.hypot(moved.x-2000,moved.z)<15);
+ assert.equal(await send(pa,'/lan/admin',{action:'tp',targetId:pb.id}),204);await a.read('teleport');
+ assert.equal(await send(pa,'/lan/admin',{action:'bring',targetId:'all'}),204);await b.read('teleport');
+ assert.equal(await send(pa,'/lan/admin',{action:'waterproof'}),204);assert.equal((await a.read('permissions')).waterproof,true);
+ assert.equal(await send(pa,'/lan/admin',{action:'waternormal'}),204);assert.equal((await a.read('permissions')).waterproof,false);
+ assert.equal(await send(pa,'/lan/admin',{action:'reloadall'}),204);assert.equal((await a.read('reload')).delay,3000);assert.equal((await b.read('reload')).delay,3000);
  assert.equal(await send(pa,'/lan/admin',{action:'groundcar'}),204);assert.equal((await a.read('permissions')).groundCar,true);
  assert.equal(await send(pa,'/lan/admin',{action:'freecar'}),204);assert.equal((await a.read('permissions')).groundCar,false);
  assert.equal(await send(pa,'/lan/admin',{action:'noclip'}),204);assert.equal((await a.read('permissions')).noclip,true);
