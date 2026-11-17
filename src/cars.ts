@@ -88,6 +88,7 @@ export function createCars(scene: THREE.Scene, world: World) {
   let bumpZ = 0;
   let steeringAngle = 0;
   let pitchRate = 0, rollRate = 0;
+  let airWasActive = false, pitchArmed = false, rollArmed = false;
   let groundVelocity = 0;
 
   function driven() {
@@ -218,6 +219,7 @@ export function createCars(scene: THREE.Scene, world: World) {
           groundVelocity = 0;
           steeringAngle = 0;
           pitchRate = rollRate = 0;
+          airWasActive = false;
           blockedTime = 0;
           tippedTime = 0;
           recoveryUsed = false;
@@ -295,15 +297,15 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
       const ground = world.groundHeight(position.x, position.z);
       if (verticalSpeed === null) {
-        const projected = position.y + groundVelocity * delta;
+        const projected = floor + groundVelocity * delta;
         if (!collision && projected - ground > 0.18 && Math.abs(speed) > 2) {
           verticalSpeed = Math.max(-12, Math.min(12, groundVelocity));
         } else {
-          groundVelocity = delta > 0 ? (ground - position.y) / delta : 0;
+          groundVelocity = delta > 0 ? (ground - floor) / delta : 0;
           position.y = ground;
         }
       }
-      const tipped = verticalSpeed === null && alignToTerrain(mesh, yaw, false, delta);
+      const tipped = verticalSpeed === null && alignToTerrain(mesh, yaw, false, delta * 0.55);
       tippedTime = tipped && Math.abs(speed) < 0.7 && verticalSpeed === null ? tippedTime + delta : 0;
       if (!recoveryUsed && (tippedTime >= 1.5 || blockedTime >= 2)) {
         recoveryUsed = true;
@@ -311,8 +313,16 @@ export function createCars(scene: THREE.Scene, world: World) {
         speed = 0;
       }
       if (verticalSpeed !== null) {
-        pitchRate = THREE.MathUtils.clamp((pitchRate + pedal * 5 * delta) * Math.exp(-delta * 0.22), -4, 4);
-        rollRate = THREE.MathUtils.clamp((rollRate - steer * 5 * delta) * Math.exp(-delta * 0.22), -4, 4);
+        // A held accelerator/steering input must be released before it controls an air trick.
+        if (!airWasActive) {
+          pitchArmed = Math.abs(pedal) < 0.15;
+          rollArmed = Math.abs(steer) < 0.15;
+          airWasActive = true;
+        }
+        if (Math.abs(pedal) < 0.15) pitchArmed = true;
+        if (Math.abs(steer) < 0.15) rollArmed = true;
+        pitchRate = THREE.MathUtils.clamp((pitchRate + (pitchArmed ? pedal : 0) * 3.5 * delta) * Math.exp(-delta * 0.65), -3.2, 3.2);
+        rollRate = THREE.MathUtils.clamp((rollRate - (rollArmed ? steer : 0) * 3.5 * delta) * Math.exp(-delta * 0.65), -3.2, 3.2);
         rotation.set(rotation.x + pitchRate * delta, yaw, rotation.z + rollRate * delta, 'YXZ');
         position.y += verticalSpeed * delta - 0.5 * RECOVERY_GRAVITY * delta * delta;
         verticalSpeed -= RECOVERY_GRAVITY * delta;
@@ -322,6 +332,7 @@ export function createCars(scene: THREE.Scene, world: World) {
           sfx(ground < 0 ? 'splash' : 'land');
           position.y = contactHeight;
           verticalSpeed = null;
+          airWasActive = false;
           groundVelocity = 0;
           pitchRate = rollRate = 0;
           rotation.x = Math.atan2(Math.sin(rotation.x), Math.cos(rotation.x));
