@@ -115,6 +115,23 @@ export function createSettings(request: (data: AdminRequest) => Promise<number>)
   commands.addEventListener('submit', async event => {
     event.preventDefault();
     const text = command.value.trim();
+    const announcement = /^\/(?:anuncio|announce)(?:\s+(.*))?$/.exec(text);
+    if (announcement) {
+      if (busy || adminTrigger.hidden) return;
+      const message = announcement[1]?.trim();
+      if (!message || message.length > 160) { resultStatus.textContent = 'Escribe un anuncio de 1 a 160 caracteres.'; return; }
+      const requestSession = session;
+      busy = true;
+      try {
+        const result = await request({action:'announce',text:message});
+        if (requestSession !== session) return;
+        resultStatus.textContent = result === 204 ? 'Anuncio enviado a toda la partida.' : result === 429 ? 'Espera 5 segundos entre anuncios.' : 'No se pudo enviar el anuncio.';
+        if (result === 204) command.value = '';
+      } catch {
+        if (requestSession === session) resultStatus.textContent = 'No se pudo enviar el anuncio. Revisa la conexión.';
+      } finally { if (requestSession === session) busy = false; }
+      return;
+    }
     const flight = /^\/(fly|unfly)(?:\s+(.+))?$/.exec(text);
     if (flight) {
       const name = flight[2];
@@ -126,7 +143,7 @@ export function createSettings(request: (data: AdminRequest) => Promise<number>)
     }
     const rename = /^\/rename\s+(.+)$/.exec(text);
     if (text !== '/kick' && !rename) {
-      resultStatus.textContent = 'Usa /fly me, /unfly me, /fly apodo, /unfly apodo, /kick o /rename apodo.';
+      resultStatus.textContent = 'Usa /anuncio mensaje, /fly me, /unfly me, /fly apodo, /unfly apodo, /kick o /rename apodo.';
       return;
     }
     if (await (rename ? moderate('rename', rename[1]) : moderate('kick'))) command.value = '';
