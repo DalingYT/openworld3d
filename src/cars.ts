@@ -6,6 +6,7 @@ import { World, waterSpeed } from './world';
 import { makeNameTag, disposeNameTag } from './name-tag';
 
 export type CarState = {
+  kind?: 'car' | 'taxi'; passengers?: (string | null)[];
   id: string; owner: string; name: string; color: number;
   x: number; y?: number; z: number; yaw: number; driver: string | null;
   impact: number; vx: number; vz: number; pitch?: number; roll?: number;
@@ -32,7 +33,7 @@ function bodyMaterial(color: number) {
   return body;
 }
 
-function makeCar(color: number) {
+function makeCar(color: number, taxi = false) {
   const body = bodyMaterial(color);
   const car = new THREE.Group();
   function piece(material: THREE.Material, x: number, y: number, z: number, w: number, h: number, d: number) {
@@ -54,6 +55,11 @@ function makeCar(color: number) {
       if (axle < 0) tire.name = 'front-wheel';
       car.add(tire);
     }
+  }
+  if (taxi) {
+    piece(headlight, 0, 1.62, 0.27, 1.1, 0.35, 0.45);
+    const sign = makeNameTag('TAXI'); sign.position.set(0, 2.05, 0.27); sign.scale.set(1.5, 0.3, 1); car.add(sign); car.userData.taxiSign = sign;
+    for (const side of [-1,1]) piece(rubber,side*1.065,.76,0,.03,.15,3.5);
   }
   return car;
 }
@@ -97,6 +103,10 @@ export function createCars(scene: THREE.Scene, world: World) {
     }
   }
 
+  function ridden() {
+    return [...cars.values()].find(c => c.state.driver === driverId || c.state.passengers?.includes(driverId));
+  }
+
   const corner = new THREE.Vector3();
   function supportHeight(mesh: THREE.Group) {
     let height = world.groundHeight(mesh.position.x, mesh.position.z);
@@ -123,8 +133,9 @@ export function createCars(scene: THREE.Scene, world: World) {
     get nitro() { return nitro; },
     get speed() { return Math.abs(speed); },
     get driving() { return Boolean(driven()); },
-    get drivingId() { return driven()?.state.id ?? null; },
-    get impactRevision() { return driven()?.state.impact; },
+    get riding() { return Boolean(ridden()); },
+    get drivingId() { return ridden()?.state.id ?? null; },
+    get impactRevision() { return ridden()?.state.impact; },
     setDriver(id: string) {
       driverId = id;
     },
@@ -133,14 +144,15 @@ export function createCars(scene: THREE.Scene, world: World) {
       for (const [id, car] of cars) {
         if (active.has(id)) continue;
         disposeNameTag(car.label);
+        if (car.mesh.userData.taxiSign) disposeNameTag(car.mesh.userData.taxiSign);
         car.mesh.removeFromParent();
         cars.delete(id);
       }
       for (const state of states) {
         let car = cars.get(state.id);
         if (!car) {
-          const mesh = makeCar(state.color);
-          const label = makeNameTag(state.name);
+          const mesh = makeCar(state.color, state.kind === 'taxi');
+          const label = makeNameTag(state.kind === 'taxi' ? `Taxi ${state.name} · ${Number(Boolean(state.driver)) + (state.passengers?.filter(Boolean).length ?? 0)}/4` : state.name);
           mesh.position.set(state.x, world.groundHeight(state.x, state.z), state.z);
           alignToTerrain(mesh, state.yaw);
           mesh.add(label);
@@ -153,9 +165,9 @@ export function createCars(scene: THREE.Scene, world: World) {
             if (part.name === 'paint') (part as THREE.Mesh).material = bodyMaterial(state.color);
           }
         }
-        if (car.state.name !== state.name) {
+        if (car.state.name !== state.name || car.state.driver !== state.driver || JSON.stringify(car.state.passengers) !== JSON.stringify(state.passengers)) {
           disposeNameTag(car.label);
-          car.label = makeNameTag(state.name);
+          car.label = makeNameTag(state.kind === 'taxi' ? `Taxi ${state.name} · ${Number(Boolean(state.driver)) + (state.passengers?.filter(Boolean).length ?? 0)}/4` : state.name);
           car.mesh.add(car.label);
         }
         const tookWheel = state.driver === driverId && car.state.driver !== driverId;
@@ -179,7 +191,9 @@ export function createCars(scene: THREE.Scene, world: World) {
       let closest: string | null = null;
       let distance = 4.5;
       for (const [id, { mesh, state }] of cars) {
-        if (state.driver || state.owner !== driverId) continue;
+        const driverSeat = state.owner === driverId && !state.driver;
+        const passengerSeat = state.kind === 'taxi' && state.owner !== driverId && state.passengers?.includes(null);
+        if (!driverSeat && !passengerSeat) continue;
         const d = mesh.position.distanceTo(position);
         if (d < distance) {
           closest = id;
@@ -213,6 +227,13 @@ export function createCars(scene: THREE.Scene, world: World) {
         } else alignToTerrain(mesh, yaw, car.lift > 0.2, delta);
       }
 
+      const passengerCar = !own ? ridden() : undefined;
+      if (passengerCar) {
+        lastDriven = passengerCar.state.id;
+        player.position.copy(passengerCar.mesh.position);
+        player.rotation.y = passengerCar.mesh.rotation.y;
+        return player.rotation.y;
+      }
       if (!own) {
         wasFlying = false; jumpsUsed = 0; nitro = 1; nitroExhausted = false;
         if (lastDriven) {

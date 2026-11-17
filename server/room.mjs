@@ -16,6 +16,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
   const failedAttempts = [];
   let dirty = false;
   let carsDirty = false;
+  let lastAnnouncement = -Infinity;
   let lastPing = Date.now();
   const startTime = lastPing;
 
@@ -60,6 +61,8 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     if (!player) return;
     leaveCar(player);
     if (player.ownedCar) {
+      const owned = cars.get(player.ownedCar);
+      if (owned) for (const rider of players.values()) if (rider.car === owned.id) leaveCar(rider);
       cars.delete(player.ownedCar);
       carsDirty = true;
     }
@@ -73,20 +76,26 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
   function leaveCar(player) {
     if (!player.car) return;
     const car = cars.get(player.car);
-    releaseCar(car);
-    delete car.y;
-    delete car.pitch;
-    delete car.roll;
+    if (car) {
+      if (car.driver === player.id) {
+        releaseCar(car);
+        delete car.y; delete car.pitch; delete car.roll;
+      } else if (car.passengers) {
+        car.passengers = car.passengers.map(id => id === player.id ? null : id);
+      }
+      player.state = {x:car.x,y:car.y ?? player.state?.y ?? 0,z:car.z,yaw:car.yaw};
+    }
     player.car = null;
     carsDirty = true;
     dirty = true;
   }
 
-  function spawnCar(player, response, selectedColor = player.color) {
+  function spawnCar(player, response, selectedColor = player.color, vehicleType = 'car') {
     if (!player.state || player.car || Date.now() < (player.nextSpawn ?? 0)) {
       return response.writeHead(409).end();
     }
     const previous = cars.get(player.ownedCar);
+    if (previous && (previous.driver || previous.passengers?.some(Boolean))) return response.writeHead(409).end();
     const { x, z, yaw } = player.state;
     for (const offset of [0, Math.PI / 2, -Math.PI / 2, Math.PI]) {
       const angle = yaw + offset;
@@ -98,7 +107,8 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       if (previous) cars.delete(previous.id);
       const id = randomUUID();
       cars.set(id, {
-        id, owner: player.id, name: player.name, color: player.color, driver: null,
+        id, owner: player.id, name: player.name, color: vehicleType === 'taxi' ? 0xffcb32 : player.color, driver: null,
+        kind: vehicleType, passengers: vehicleType === 'taxi' ? [null,null,null] : [],
         x: carX, z: carZ, yaw, vx: 0, vz: 0, impact: 0
       });
       player.ownedCar = id;
@@ -186,11 +196,12 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     };
   }
 
-  const move = withPlayer((player, { x, y, z, yaw, phrase, text, ride, drivingCar, carImpact, hat, color, pitch, roll, social }, response) => {
+  const move = withPlayer((player, { x, y, z, yaw, phrase, text, ride, drivingCar, carImpact, hat, color, pitch, roll, social, vehicleType }, response) => {
     if (social !== undefined) return features.action(player, social, response);
     if (ride === 'spawn') {
       if (color !== undefined && !colors.includes(color)) return response.writeHead(400).end();
-      return spawnCar(player, response, color);
+      if (vehicleType !== undefined && !['car','taxi'].includes(vehicleType)) return response.writeHead(400).end();
+      return spawnCar(player, response, color, vehicleType);
     }
     if (ride === 'exit') {
       leaveCar(player);
@@ -198,13 +209,16 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     }
     if (typeof ride === 'string') {
       const car = cars.get(ride);
-      if (!car || car.owner !== player.id || car.driver || player.car || !player.state) {
+      if (!car || player.car || !player.state) {
         return response.writeHead(409).end();
       }
       if (Math.hypot(player.state.x - car.x, player.state.z - car.z) > 5.5) {
         return response.writeHead(409).end();
       }
-      car.driver = player.id;
+      if (car.owner === player.id && !car.driver) car.driver = player.id;
+      else if (car.kind === 'taxi' && car.owner !== player.id && car.passengers.includes(null)) {
+        car.passengers[car.passengers.indexOf(null)] = player.id;
+      } else return response.writeHead(409).end();
       player.car = car.id;
       carsDirty = true;
       dirty = true;
@@ -244,7 +258,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       player.color = color;
       dirty = true;
       const owned = cars.get(player.ownedCar);
-      if (owned) { owned.color = color; carsDirty = true; }
+      if (owned && owned.kind !== 'taxi') { owned.color = color; carsDirty = true; }
     }
     if (hat !== undefined && hat !== player.hat) {
       player.hat = hat;
@@ -253,6 +267,11 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
 
     if (player.car) {
       const car = cars.get(player.car);
+      if (car.driver !== player.id) {
+        player.state = {x:car.x,y:car.y ?? y,z:car.z,yaw:car.yaw};
+        dirty = true;
+        return response.writeHead(204).end();
+      }
       moveCar(cars, car, { x, y, z, yaw });
       car.pitch = Math.atan2(Math.sin(pitch ?? 0), Math.cos(pitch ?? 0));
       car.roll = Math.atan2(Math.sin(roll ?? 0), Math.cos(roll ?? 0));
@@ -266,8 +285,15 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     response.writeHead(204).end();
   });
 
-  function moderate(player, { action, targetId, name }, response) {
+  function moderate(player, { action, targetId, name, text }, response) {
     if (!player.admin) return response.writeHead(403).end();
+    if (action === 'announce') {
+      if (typeof text !== 'string' || !text.trim() || text.trim().length > 160 || /[\p{Cc}\p{Cf}]/u.test(text)) return response.writeHead(400).end();
+      if (Date.now() - lastAnnouncement < 5000) return response.writeHead(429).end();
+      lastAnnouncement = Date.now();
+      for (const recipient of players.values()) send(recipient.response, 'announcement', {name:player.name,text:text.trim()});
+      return response.writeHead(204).end();
+    }
     if (action === 'fly' || action === 'unfly') {
       const target = targetId === 'me' ? player : [...players.values()].find(q => q.id === targetId);
       if (!target) return response.writeHead(404).end();

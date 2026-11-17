@@ -149,6 +149,10 @@ const cameraButton = document.querySelector<HTMLButtonElement>('#touch-camera')!
 const carAction = document.querySelector<HTMLButtonElement>('#car-action')!;
 const carActionText = carAction.querySelector('b')!;
 const spawnCar = document.querySelector<HTMLButtonElement>('#car-spawn')!;
+const vehicleType = document.createElement('select'); vehicleType.setAttribute('aria-label', 'Tipo de carro');
+vehicleType.add(new Option('Carro', 'car')); vehicleType.add(new Option('Taxi · 4 plazas', 'taxi'));
+vehicleType.style.cssText = 'background:#294260;color:white;border:1px solid #7e9ab1;border-radius:6px;min-height:36px;max-width:140px';
+spawnCar.before(vehicleType);
 const tiendini = document.createElement('button'); tiendini.type = 'button'; tiendini.textContent = 'Entrar a Gubo Tiendini'; tiendini.hidden = true;
 document.querySelector('#car-controls')!.append(tiendini);
 tiendini.addEventListener('click', () => { unlockPointer(); (document.querySelector('#hat-shop') as HTMLDialogElement).showModal(); });
@@ -157,7 +161,7 @@ let lastCanvasPointer = 'mouse';
 
 async function toggleRide() {
   if (ridePending || lan.entering || (lan.settingsOpen || arcade.open || gamepad.open) || !lan.carsAvailable) return;
-  const ride = cars.driving ? 'exit' : cars.nearby(player.position);
+  const ride = cars.riding ? 'exit' : cars.nearby(player.position);
   if (!ride) return;
   ridePending = true;
   carAction.disabled = true;
@@ -167,10 +171,10 @@ async function toggleRide() {
 }
 carAction.addEventListener('click', () => { void toggleRide(); });
 spawnCar.addEventListener('click', async () => {
-  if (ridePending || (lan.settingsOpen || arcade.open || gamepad.open) || !lan.carsAvailable || cars.driving) return;
+  if (ridePending || (lan.settingsOpen || arcade.open || gamepad.open) || !lan.carsAvailable || cars.riding) return;
   ridePending = true;
   spawnCar.disabled = true;
-  if (!await lan.ride('spawn')) {
+  if (!await lan.ride('spawn', vehicleType.value as 'car' | 'taxi')) {
     spawnCar.textContent = 'No se pudo sacar el carro';
     window.setTimeout(() => { spawnCar.textContent = 'Sacar carro'; }, 1800);
   }
@@ -324,8 +328,8 @@ function animate(time: number) {
   if (!lan.entering && !lan.settingsOpen && !arcade.open && !gamepad.open) {
     turn(gamepad.input.lookX * delta, gamepad.input.lookY * delta, 2.1);
   }
-  tiendini.hidden = lan.entering || cars.driving || lan.settingsOpen || arcade.open || gamepad.open || Math.hypot(player.position.x + 24, player.position.z + 51) > 4;
-  arcade.update(player.position, !lan.entering && !cars.driving && !lan.settingsOpen, time);
+  tiendini.hidden = lan.entering || cars.riding || lan.settingsOpen || arcade.open || gamepad.open || Math.hypot(player.position.x + 24, player.position.z + 51) > 4;
+  arcade.update(player.position, !lan.entering && !cars.riding && !lan.settingsOpen, time);
   if (lan.settingsOpen || arcade.open || gamepad.open) { keys.clear(); jumpQueued = false; }
   const previousX = player.position.x, previousZ = player.position.z;
   const moveX = Number(keys.has('KeyD')) - Number(keys.has('KeyA')) + gamepad.input.x + ((lan.settingsOpen || arcade.open || gamepad.open) ? 0 : touch.x);
@@ -350,7 +354,7 @@ function animate(time: number) {
   player.visible = thirdPerson && !driving;
   const showCarAction = lan.carsAvailable && (driving || Boolean(cars.nearby(player.position)));
   carAction.hidden = !showCarAction;
-  spawnCar.hidden = !lan.carsAvailable || driving;
+  spawnCar.hidden = vehicleType.hidden = !lan.carsAvailable || driving;
   const actionText = driving ? 'Bajar del carro' : 'Subir al carro';
   if (carActionText.textContent !== actionText) carActionText.textContent = actionText;
   const { position } = player;

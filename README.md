@@ -25,3 +25,5 @@ Busca **Gubo Tiendini** cerca de la entrada de la ciudad para abrir la tienda de
 
 Abre **Vida** para ver tus **GuboCoins**, comprar una casa y enviar o aceptar solicitudes de amistad. Recibes 100 monedas al entrar y 5 por minuto conectado; una casa cuesta 80. Tus amigos aceptados pueden visitar tu casa. Monedas, casas y amistades se reinician al salir o reconectarte.
 `Espacio` o **Saltar** dos veces permite un doble salto, tanto a pie como en carro. Al conducir, mantén **Shift**, el botón **Nitro** o el botón de correr del mando para usar nitro (3 segundos de carga; recarga en 6 segundos). El selector **Velocidad** ofrece Paseo, Normal, Deportivo y Extremo. Extremo supera los 200 km/h en terreno plano sin nitro y tiene frenos reforzados. El contador de FPS aparece en una esquina.
+
+En el selector junto a **Sacar carro**, elige **Taxi · 4 plazas** para sacar un taxi amarillo. El dueño conduce y otros tres jugadores pueden subir con **E** o **Subir al carro**. Cada pasajero puede bajarse por su cuenta; solo el conductor controla velocidad, nitro y saltos. El indicador del taxi muestra cuántas plazas están ocupadas.

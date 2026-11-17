@@ -1,3 +1,4 @@
+import { createAnnouncements } from './announcements';
 import { createLife } from './life';
 import type { World } from './world';
 import * as THREE from 'three';
@@ -75,6 +76,7 @@ export function createLan(
   let playerId = '';
   let carsAvailable = false;
   let flying = false;
+  const announcements = createAnnouncements();
   const life = createLife(scene, world, async social => {
     if (!token) return 404;
     try { return (await fetch(serverUrl + '/lan/move', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,social})})).status; } catch { return 0; }
@@ -208,6 +210,7 @@ export function createLan(
       connection.close();
       stream = null;
       token = null;
+      announcements.clear();
       flying = false;
       life.setConnected('', false);
       shop.setConnected(false);
@@ -221,6 +224,9 @@ export function createLan(
       button.disabled = false;
       status.textContent = 'Un administrador te expulsó de la partida.';
       dialog.showModal();
+    });
+    connection.addEventListener('announcement', event => {
+      if (token) { const data = JSON.parse(event.data); announcements.show(data.name, data.text); }
     });
     connection.addEventListener('permissions', event => {
       if (!token) return;
@@ -239,6 +245,7 @@ export function createLan(
     });
     connection.addEventListener('error', () => {
       token = null;
+      announcements.clear();
       flying = false;
       life.setConnected('', false);
       shop.setConnected(false);
@@ -271,13 +278,13 @@ export function createLan(
     get entering() { return dialog.open; },
     get settingsOpen() { return settings.open || shop.open || chat.typing || life.open; },
     get carsAvailable() { return carsAvailable; },
-    async ride(ride: string) {
+    async ride(ride: string, vehicleType: 'car' | 'taxi' = 'car') {
       if (!token || !carsAvailable) return false;
       try {
         const response = await fetch(serverUrl + '/lan/move', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, ride, color: shop.color })
+          body: JSON.stringify({ token, ride, vehicleType, color: shop.color })
         });
         return response.ok;
       } catch {
