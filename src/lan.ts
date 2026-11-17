@@ -83,6 +83,7 @@ export function createLan(
   let flying = false;
   let isAdmin = false;
   let noclip = false;
+  let groundCar = false;
   let clientId: string = Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('');
   try { clientId = localStorage.getItem('openworld3d.client') || clientId; localStorage.setItem('openworld3d.client',clientId); } catch {}
   const announcements = createAnnouncements();
@@ -195,7 +196,7 @@ export function createLan(
       playerId = ready.id;
       vehicleRoster.setSelf(ready.id,name);
       flying = false;
-      isAdmin = false; noclip = false;
+      isAdmin = false; noclip = false; groundCar = false;
       life.setConnected(ready.id, ready.sessionFeatures === true);
       carsAvailable = ready.spawnCars === true;
       cars.setDriver(ready.id);
@@ -227,7 +228,7 @@ export function createLan(
       token = null;
       announcements.clear();
       flying = false;
-      isAdmin = false; noclip = false;
+      isAdmin = false; noclip = false; groundCar = false;
       life.setConnected('', false);
       shop.setConnected(false);
       carsAvailable = false;
@@ -248,6 +249,7 @@ export function createLan(
     connection.addEventListener('permissions', event => {
       if (!token) return;
       const permissions = JSON.parse(event.data);
+      if(permissions.groundCar !== undefined)groundCar=permissions.groundCar===true;
       if(permissions.noclip !== undefined)noclip=permissions.noclip===true;
       if(permissions.admin !== undefined)isAdmin=permissions.admin===true;
       chat.setFreeChat(permissions.freeChat === true);
@@ -266,7 +268,7 @@ export function createLan(
       token = null;
       announcements.clear();
       flying = false;
-      isAdmin = false; noclip = false;
+      isAdmin = false; noclip = false; groundCar = false;
       life.setConnected('', false);
       shop.setConnected(false);
       carsAvailable = false;
@@ -295,6 +297,7 @@ export function createLan(
   dialog.showModal();
 
   return {
+    get groundCar() { return isAdmin && groundCar; },
     get noclip() { return isAdmin && noclip; },
     get admin() { return isAdmin; },
     get flying() { return flying; },

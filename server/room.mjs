@@ -281,7 +281,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       response.writeHead(400).end();
       return;
     }
-    if (speedMode === 8 && !player.admin) return response.writeHead(403).end();
+    if ([8,30].includes(speedMode) && !player.admin) return response.writeHead(403).end();
     if (player.car !== (drivingCar ?? null)) return response.writeHead(409).end();
     if (player.car && carImpact !== cars.get(player.car).impact) return response.writeHead(409).end();
     if (hat !== undefined && hat !== null && (typeof hat !== 'string' || !Object.hasOwn(hats, hat))) {
@@ -321,6 +321,11 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
 
   function moderate(player, { action, targetId, name, text }, response) {
     if (!player.admin) return response.writeHead(403).end();
+    if (action === 'groundcar' || action === 'freecar') {
+      player.groundCar = action === 'groundcar';
+      send(player.response,'permissions',{admin:true,freeChat:true,flying:Boolean(player.flying),groundCar:player.groundCar});
+      return response.writeHead(204).end();
+    }
     if (action === 'noclip' || action === 'clip') {
       player.noclip = action === 'noclip';
       send(player.response,'permissions',{admin:true,freeChat:true,flying:Boolean(player.flying),noclip:player.noclip});

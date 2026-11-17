@@ -10,10 +10,14 @@ try {
  const pa=await a.read('ready'),pb=await b.read('ready');
  const send=async(p,path,data)=>(await fetch(url+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:p.token,...data})})).status;
  assert.equal(await send(pb,'/lan/admin',{action:'noclip'}),403);
+ assert.equal(await send(pb,'/lan/admin',{action:'groundcar'}),403);
+ assert.equal(await send(pb,'/lan/move',{x:0,y:0,z:0,yaw:0,speedMode:30}),403);
  assert.equal(await send(pb,'/lan/move',{text:'Forbidden'}),403);
  assert.equal(await send(pb,'/lan/admin',{action:'chat_allow',targetId:pb.id}),403);
  assert.equal(await send(pa,'/lan/admin',{code:'12345678'}),204);
  assert.equal((await a.read('permissions')).freeChat,true);
+ assert.equal(await send(pa,'/lan/admin',{action:'groundcar'}),204);assert.equal((await a.read('permissions')).groundCar,true);
+ assert.equal(await send(pa,'/lan/admin',{action:'freecar'}),204);assert.equal((await a.read('permissions')).groundCar,false);
  assert.equal(await send(pa,'/lan/admin',{action:'noclip'}),204);assert.equal((await a.read('permissions')).noclip,true);
  assert.equal(await send(pa,'/lan/admin',{action:'clip'}),204);assert.equal((await a.read('permissions')).noclip,false);
  assert.equal(await send(pa,'/lan/move',{text:'Admin can speak'}),204);

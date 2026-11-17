@@ -113,6 +113,7 @@ export function createCars(scene: THREE.Scene, world: World) {
   let wasFlying = false;
   let activeMode = 1;
   let wasNoclip = false;
+  let stickToGround = false;
   const safeCarPosition = new THREE.Vector3();
   let jumpsUsed = 0, nitro = 1, nitroExhausted = false;
   let driverId = '';
@@ -183,7 +184,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       return true;
     },
     jump() {
-      if (!driven() || ['boat','boat4'].includes(driven()?.state.kind ?? '') || wasFlying || jumpsUsed >= 2) return;
+      if (stickToGround || !driven() || ['boat','boat4'].includes(driven()?.state.kind ?? '') || wasFlying || jumpsUsed >= 2) return;
       jumpsUsed = verticalSpeed === null ? 1 : 2;
       verticalSpeed = RECOVERY_SPEED; sfx('jump');
     },
@@ -260,7 +261,8 @@ export function createCars(scene: THREE.Scene, world: World) {
       }
       return closest;
     },
-    update(player: THREE.Group, steering: number, throttle: number, delta: number, flying = false, verticalInput = 0, boost = false, speedMode = 1, admin = false, noclip = false) {
+    update(player: THREE.Group, steering: number, throttle: number, delta: number, flying = false, verticalInput = 0, boost = false, speedMode = 1, admin = false, noclip = false, groundCar = false) {
+      stickToGround = admin && groundCar;
       const own = driven();
       const mix = 1 - Math.exp(-delta * 13);
       for (const car of cars.values()) {
@@ -327,7 +329,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       wasNoclip=ghost;
       const pedal = THREE.MathUtils.clamp(throttle, -1, 1);
       const steer = THREE.MathUtils.clamp(steering, -1, 1);
-      const pace = [0.65, 1, 1.35, 3, 5, ...(admin ? [8] : [])].includes(speedMode) ? speedMode : 1;
+      const pace = [0.65, 1, 1.35, 3, 5, ...(admin ? [8,30] : [])].includes(speedMode) ? speedMode : 1;
       activeMode = pace;
       if (!boost) nitroExhausted = false;
       const boosting = boost && pedal > 0 && nitro > 0 && !nitroExhausted;
@@ -344,6 +346,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         position.y=0; verticalSpeed=null; wasFlying=false;
         player.position.copy(position);player.rotation.y=rotation.y;return rotation.y;
       }
+      if(stickToGround){flying=false;verticalSpeed=null;groundVelocity=0;pitchRate=rollRate=0;}
       if (flying) {
         wasFlying = true; verticalSpeed = null; pitchRate = rollRate = 0;
         const heading = rotation.y - steer * delta * 1.6;
@@ -356,7 +359,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         player.position.copy(position); player.rotation.y = heading;
         return heading;
       }
-      if (wasFlying) { wasFlying = false; verticalSpeed = 0; groundVelocity = 0; }
+      if (wasFlying) { wasFlying = false; verticalSpeed = stickToGround ? null : 0; groundVelocity = 0; }
       const oldYaw = rotation.y;
       const oldVX = bumpX - Math.sin(oldYaw) * speed;
       const oldVZ = bumpZ - Math.cos(oldYaw) * speed;
@@ -379,17 +382,20 @@ export function createCars(scene: THREE.Scene, world: World) {
         const wet = waterSpeed(floor, 0.28);
         const limit = (pedal < 0 ? 9 : 24 * power) * wet * pace;
         const braking = pedal !== 0 && pedal * speed < -0.2;
-        if (braking) {
+        if(pace === 30) {
+          const target = pedal * (pedal < 0 ? 15 : boosting ? 400 : 330) * wet;
+          speed = THREE.MathUtils.lerp(speed,target,1-Math.exp(-delta*(braking || !pedal ? 2 : .65)));
+        } else if (braking) {
           const amount = (pace === 8 ? 88 : pace === 5 ? 66 : pace === 3 ? 44 : 22) * Math.abs(pedal) * delta;
           speed = Math.sign(speed) * Math.max(0, Math.abs(speed) - amount);
         } else if (pedal) {
           speed += pedal * 8.5 * pace * (pace === 3 ? 2 : 1) * (boosting ? (pace === 8 ? 4 : pace === 5 ? 3.5 : 2.5) : 1) * delta;
         }
         const resistance = (1.1 + 0.012 * speed * speed + (1 - wet) * 12) * delta;
-        speed = Math.sign(speed) * Math.max(0, Math.abs(speed) - resistance);
+        if(pace !== 30) speed = Math.sign(speed) * Math.max(0, Math.abs(speed) - resistance);
         speed -= 5 * slope / Math.hypot(1, slope) * delta;
         // Soft speed governor retains impacts and downhill momentum.
-        if (Math.abs(speed) > limit) speed *= Math.exp(-delta * 1.5);
+        if (pace !== 30 && Math.abs(speed) > limit) speed *= Math.exp(-delta * 1.5);
       }
       for (const part of mesh.children) {
         if (part.name === 'front-wheel') {
@@ -413,7 +419,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       const ground = world.groundHeight(position.x, position.z);
       if (verticalSpeed === null) {
         const projected = floor + groundVelocity * delta;
-        if (!collision && projected - ground > 0.18 && Math.abs(speed) > 2) {
+        if (!stickToGround && !collision && projected - ground > 0.18 && Math.abs(speed) > 2) {
           verticalSpeed = Math.max(-12, Math.min(12, groundVelocity));
         } else {
           groundVelocity = delta > 0 ? (ground - floor) / delta : 0;
