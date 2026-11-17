@@ -20,3 +20,5 @@ Los carros tienen aceleración progresiva, inercia y derrape en curvas rápidas.
 En **Configuración → Audio** puedes ajustar la música y los efectos por separado o silenciar el juego. El audio empieza tras tocar o hacer clic y se pausa cuando ocultas la pestaña.
 
 En **Configuración** puedes desactivar las texturas. Al conectar un mando, pulsa un botón para que el navegador lo detecte y elige **Xbox**, **Nintendo**, **PlayStation** o **Genérico**. El stick izquierdo mueve, el derecho gira la cámara y el menú muestra los botones correspondientes. Si el navegador no reconoce el mapa del mando, sigue la configuración guiada de botones y sticks.
+
+Busca **Gubo Tiendini** cerca de la entrada de la ciudad para abrir la tienda de sombreros y colores. En el aire, usa **W/S** para inclinar el carro y **A/D** para girarlo de lado (también con el joystick o el stick izquierdo). El giro conserva inercia al soltar.

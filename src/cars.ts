@@ -7,7 +7,7 @@ import { makeNameTag, disposeNameTag } from './name-tag';
 export type CarState = {
   id: string; owner: string; name: string; color: number;
   x: number; y?: number; z: number; yaw: number; driver: string | null;
-  impact: number; vx: number; vz: number;
+  impact: number; vx: number; vz: number; pitch?: number; roll?: number;
 };
 
 const RECOVERY_GRAVITY = 18;
@@ -87,6 +87,7 @@ export function createCars(scene: THREE.Scene, world: World) {
   let bumpX = 0;
   let bumpZ = 0;
   let steeringAngle = 0;
+  let pitchRate = 0, rollRate = 0;
   let groundVelocity = 0;
 
   function driven() {
@@ -94,6 +95,16 @@ export function createCars(scene: THREE.Scene, world: World) {
     for (const car of cars.values()) {
       if (car.state.driver === driverId) return car;
     }
+  }
+
+  const corner = new THREE.Vector3();
+  function supportHeight(mesh: THREE.Group) {
+    let height = world.groundHeight(mesh.position.x, mesh.position.z);
+    for (const x of [-1.06, 1.06]) for (const y of [0.1, 1.5]) for (const z of [-2.01, 2.01]) {
+      corner.set(x, y, z).applyEuler(mesh.rotation);
+      height = Math.max(height, world.groundHeight(mesh.position.x + corner.x, mesh.position.z + corner.z) - corner.y);
+    }
+    return height;
   }
 
   function blocked(x: number, z: number, yaw: number) {
@@ -106,6 +117,7 @@ export function createCars(scene: THREE.Scene, world: World) {
     jump() {
       if (driven() && verticalSpeed === null) { verticalSpeed = RECOVERY_SPEED; sfx('jump'); }
     },
+    get attitude() { const car = driven(); return car ? { pitch: car.mesh.rotation.x, roll: car.mesh.rotation.z } : {}; },
     get driving() { return Boolean(driven()); },
     get drivingId() { return driven()?.state.id ?? null; },
     get impactRevision() { return driven()?.state.impact; },
@@ -180,7 +192,7 @@ export function createCars(scene: THREE.Scene, world: World) {
         if (car === own) continue;
         const { state, mesh } = car;
         if (mesh.position.x === state.x && mesh.position.z === state.z &&
-            car.lift === car.targetLift && mesh.rotation.y === state.yaw) continue;
+            car.lift === car.targetLift && mesh.rotation.y === state.yaw && state.pitch === undefined && state.roll === undefined) continue;
         const approach = (from: number, to: number) =>
           Math.abs(from - to) < 0.01 ? to : THREE.MathUtils.lerp(from, to, mix);
         mesh.position.x = approach(mesh.position.x, state.x);
@@ -191,7 +203,10 @@ export function createCars(scene: THREE.Scene, world: World) {
         const angle = state.yaw - mesh.rotation.y;
         const shortest = Math.atan2(Math.sin(angle), Math.cos(angle));
         const yaw = Math.abs(shortest) < 0.01 ? state.yaw : mesh.rotation.y + shortest * mix;
-        alignToTerrain(mesh, yaw, car.lift > 0.2, delta);
+        if (state.pitch !== undefined && state.roll !== undefined) {
+          const angleTo = (from: number, to: number) => from + Math.atan2(Math.sin(to - from), Math.cos(to - from)) * mix;
+          mesh.rotation.set(angleTo(mesh.rotation.x, state.pitch), yaw, angleTo(mesh.rotation.z, state.roll), 'YXZ');
+        } else alignToTerrain(mesh, yaw, car.lift > 0.2, delta);
       }
 
       if (!own) {
@@ -202,6 +217,7 @@ export function createCars(scene: THREE.Scene, world: World) {
           verticalSpeed = null;
           groundVelocity = 0;
           steeringAngle = 0;
+          pitchRate = rollRate = 0;
           blockedTime = 0;
           tippedTime = 0;
           recoveryUsed = false;
@@ -287,7 +303,7 @@ export function createCars(scene: THREE.Scene, world: World) {
           position.y = ground;
         }
       }
-      const tipped = alignToTerrain(mesh, yaw, verticalSpeed !== null, delta);
+      const tipped = verticalSpeed === null && alignToTerrain(mesh, yaw, false, delta);
       tippedTime = tipped && Math.abs(speed) < 0.7 && verticalSpeed === null ? tippedTime + delta : 0;
       if (!recoveryUsed && (tippedTime >= 1.5 || blockedTime >= 2)) {
         recoveryUsed = true;
@@ -295,20 +311,28 @@ export function createCars(scene: THREE.Scene, world: World) {
         speed = 0;
       }
       if (verticalSpeed !== null) {
+        pitchRate = THREE.MathUtils.clamp((pitchRate + pedal * 5 * delta) * Math.exp(-delta * 0.22), -4, 4);
+        rollRate = THREE.MathUtils.clamp((rollRate - steer * 5 * delta) * Math.exp(-delta * 0.22), -4, 4);
+        rotation.set(rotation.x + pitchRate * delta, yaw, rotation.z + rollRate * delta, 'YXZ');
         position.y += verticalSpeed * delta - 0.5 * RECOVERY_GRAVITY * delta * delta;
         verticalSpeed -= RECOVERY_GRAVITY * delta;
         // Rising terrain can meet the car before the upward jump ends.
-        if (position.y <= ground) {
+        const contactHeight = supportHeight(mesh);
+        if (position.y <= contactHeight) {
           sfx(ground < 0 ? 'splash' : 'land');
-          position.y = ground;
+          position.y = contactHeight;
           verticalSpeed = null;
           groundVelocity = 0;
-          speed *= 0.94;
+          pitchRate = rollRate = 0;
+          rotation.x = Math.atan2(Math.sin(rotation.x), Math.cos(rotation.x));
+          rotation.z = Math.atan2(Math.sin(rotation.z), Math.cos(rotation.z));
+          speed *= 0.85;
         }
-        alignToTerrain(mesh, yaw, verticalSpeed !== null, delta);
+        if (verticalSpeed === null) alignToTerrain(mesh, yaw, false, delta);
       } else if (!collision && !tipped) {
         recoveryUsed = false;
       }
+      if (verticalSpeed === null) position.y = Math.max(position.y, supportHeight(mesh));
       player.position.copy(position);
       player.rotation.y = rotation.y;
       return rotation.y;

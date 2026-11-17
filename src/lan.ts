@@ -274,7 +274,7 @@ export function createLan(
       const { x, y, z } = player.position;
       const body = JSON.stringify({
         token, x, y, z, yaw: player.rotation.y, drivingCar: cars.drivingId,
-        carImpact: cars.impactRevision, hat: shop.selected, color: shop.color
+        ...cars.attitude, carImpact: cars.impactRevision, hat: shop.selected, color: shop.color
       });
       if (body === lastSent) return;
       sending = true;

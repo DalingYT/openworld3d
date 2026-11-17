@@ -89,6 +89,22 @@ export function addCity(scene: THREE.Scene) {
     }
   }
 
+  // Gubo Tiendini: approach the storefront to open the existing cosmetics shop.
+  add(0xf1dfb0, -24, y + 2, -60, 8, 4, 12);
+  add(0xb62943, -24, y + 4.15, -60, 8.6, 0.3, 12.6);
+  add(0xb62943, -24, y + 3.05, -53.7, 8.5, 0.45, 1);
+  add(0x37566b, -24, y + 1.3, -53.96, 1.8, 2.6, 0.1);
+  add(0x8cc8da, -26.6, y + 1.8, -53.94, 2.1, 1.6, 0.1);
+  add(0x8cc8da, -21.4, y + 1.8, -53.94, 2.1, 1.6, 0.1);
+  const shopSign = document.createElement('canvas'); shopSign.width = 512; shopSign.height = 128;
+  const shopInk = shopSign.getContext('2d')!;
+  shopInk.fillStyle = '#b62943'; shopInk.fillRect(0, 0, 512, 128);
+  shopInk.fillStyle = '#fff3c9'; shopInk.textAlign = 'center'; shopInk.font = 'bold 46px system-ui'; shopInk.fillText('GUBO TIENDINI', 256, 62);
+  shopInk.font = '24px system-ui'; shopInk.fillText('Sombreros y colores', 256, 102);
+  const shopMap = new THREE.CanvasTexture(shopSign); shopMap.colorSpace = THREE.SRGBColorSpace;
+  const shopBoard = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.75), new THREE.MeshBasicMaterial({map: shopMap}));
+  shopBoard.position.set(-24, y + 4.8, -53.8); scene.add(shopBoard);
+
   const matrix = new THREE.Matrix4();
   for (const [color, pieces] of batches) {
     const material = new THREE.MeshLambertMaterial({ color });

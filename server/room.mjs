@@ -72,6 +72,8 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     car.vx = 0;
     car.vz = 0;
     delete car.y;
+    delete car.pitch;
+    delete car.roll;
     player.car = null;
     carsDirty = true;
     dirty = true;
@@ -179,7 +181,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     };
   }
 
-  const move = withPlayer((player, { x, y, z, yaw, phrase, ride, drivingCar, carImpact, hat, color }, response) => {
+  const move = withPlayer((player, { x, y, z, yaw, phrase, ride, drivingCar, carImpact, hat, color, pitch, roll }, response) => {
     if (ride === 'spawn') {
       if (color !== undefined && !colors.includes(color)) return response.writeHead(400).end();
       return spawnCar(player, response, color);
@@ -218,6 +220,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       response.writeHead(204).end();
       return;
     }
+    if ([pitch, roll].some(value => value !== undefined && !Number.isFinite(value))) return response.writeHead(400).end();
     if (![x, y, z, yaw].every(Number.isFinite)) {
       response.writeHead(400).end();
       return;
@@ -242,6 +245,8 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     if (player.car) {
       const car = cars.get(player.car);
       moveCar(cars, car, { x, y, z, yaw });
+      car.pitch = Math.atan2(Math.sin(pitch ?? 0), Math.cos(pitch ?? 0));
+      car.roll = Math.atan2(Math.sin(roll ?? 0), Math.cos(roll ?? 0));
       carsDirty = true;
     }
     const previous = player.state;

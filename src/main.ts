@@ -129,6 +129,9 @@ const cameraButton = document.querySelector<HTMLButtonElement>('#touch-camera')!
 const carAction = document.querySelector<HTMLButtonElement>('#car-action')!;
 const carActionText = carAction.querySelector('b')!;
 const spawnCar = document.querySelector<HTMLButtonElement>('#car-spawn')!;
+const tiendini = document.createElement('button'); tiendini.type = 'button'; tiendini.textContent = 'Entrar a Gubo Tiendini'; tiendini.hidden = true;
+document.querySelector('#car-controls')!.append(tiendini);
+tiendini.addEventListener('click', () => { unlockPointer(); (document.querySelector('#hat-shop') as HTMLDialogElement).showModal(); });
 let ridePending = false;
 let lastCanvasPointer = 'mouse';
 
@@ -300,6 +303,7 @@ function animate(time: number) {
   if (!lan.entering && !lan.settingsOpen && !arcade.open && !gamepad.open) {
     turn(gamepad.input.lookX * delta, gamepad.input.lookY * delta, 2.1);
   }
+  tiendini.hidden = lan.entering || cars.driving || lan.settingsOpen || arcade.open || gamepad.open || Math.hypot(player.position.x + 24, player.position.z + 51) > 4;
   arcade.update(player.position, !lan.entering && !cars.driving && !lan.settingsOpen, time);
   if (lan.settingsOpen || arcade.open || gamepad.open) { keys.clear(); jumpQueued = false; }
   const previousX = player.position.x, previousZ = player.position.z;
