@@ -43,3 +43,6 @@
 }
 #game-chat p { margin: 0 12px 8px; }
 #game-chat p:empty { display: none; }
+
+#game-chat form:not([hidden]) { display: flex; gap: 6px; padding: 10px; }
+#game-chat input { min-width: 0; width: 100%; border: 1px solid #7e9ab1; border-radius: 6px; padding: 8px; font: inherit; }

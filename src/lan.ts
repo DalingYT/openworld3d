@@ -11,6 +11,7 @@ type PlayerState = {
   id: string;
   name: string;
   color: number;
+  freeChat?: boolean;
   x: number;
   y: number;
   z: number;
@@ -85,13 +86,13 @@ export function createLan(
       return 0;
     }
   });
-  const chat = createChat(scene, async phrase => {
+  const chat = createChat(scene, async message => {
     if (!token) return false;
     try {
       const response = await fetch(serverUrl + '/lan/move', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, phrase })
+        body: JSON.stringify({ token, ...message })
       });
       return response.ok;
     } catch {
@@ -109,7 +110,7 @@ export function createLan(
 
   function updatePlayers(states: PlayerState[]) {
     showRoster(states);
-    settings.setPlayers(states.map(({ id, name }) => ({ id, name })));
+    settings.setPlayers(states.map(({ id, name, freeChat }) => ({ id, name, freeChat })));
     const ids = new Set(states.map(state => state.id));
     for (const key of others.keys()) {
       if (!ids.has(key)) removePlayer(key);
@@ -208,11 +209,14 @@ export function createLan(
       status.textContent = 'Un administrador te expulsó de la partida.';
       dialog.showModal();
     });
+    connection.addEventListener('permissions', event => {
+      if (token) chat.setFreeChat(JSON.parse(event.data).freeChat === true);
+    });
     connection.addEventListener('chat', event => {
       if (!token) return;
-      const { id, name, phrase } = JSON.parse(event.data) as { id: string; name: string; phrase: string };
+      const { id, name, phrase, text } = JSON.parse(event.data) as { id: string; name: string; phrase?: string; text?: string };
       const avatar = id === playerId ? player : others.get(id)?.avatar;
-      chat.receive(name, phrase, avatar?.position);
+      chat.receive(name, phrase, avatar?.position, text);
     });
     connection.addEventListener('error', () => {
       token = null;
@@ -243,7 +247,7 @@ export function createLan(
 
   return {
     get entering() { return dialog.open; },
-    get settingsOpen() { return settings.open || shop.open; },
+    get settingsOpen() { return settings.open || shop.open || chat.typing; },
     get carsAvailable() { return carsAvailable; },
     async ride(ride: string) {
       if (!token || !carsAvailable) return false;

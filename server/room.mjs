@@ -30,7 +30,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     const ping = Date.now() - lastPing >= 10_000;
     if (dirty) {
       const snapshot = [...players.values()].filter(player => player.state).map(
-        ({ id, name, color, state, car, hat }) => ({ id, name, color, ...state, car, hat })
+        ({ id, name, color, state, car, hat, admin, freeChat }) => ({ id, name, color, ...state, car, hat, freeChat: Boolean(admin || freeChat) })
       );
       for (const player of players.values()) {
         send(player.response, 'players', snapshot.filter(other => other.id !== player.id));
@@ -140,7 +140,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       'Cache-Control': 'no-cache, no-transform',
       'X-Accel-Buffering': 'no'
     });
-    send(response, 'ready', { id, token, color, moderation: true, spawnCars: true, worldTime: Date.now() - startTime,
+    send(response, 'ready', { id, token, color, freeChat: false, moderation: true, spawnCars: true, worldTime: Date.now() - startTime,
       x: [0, 3, -3, 6][slot % 4], z: -35 - Math.floor(slot / 4) * 3 });
     send(response, 'cars', [...cars.values()]);
     dirty = true;
@@ -179,7 +179,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     };
   }
 
-  const move = withPlayer((player, { x, y, z, yaw, phrase, ride, drivingCar, carImpact, hat, color, pitch, roll }, response) => {
+  const move = withPlayer((player, { x, y, z, yaw, phrase, text, ride, drivingCar, carImpact, hat, color, pitch, roll }, response) => {
     if (ride === 'spawn') {
       if (color !== undefined && !colors.includes(color)) return response.writeHead(400).end();
       return spawnCar(player, response, color);
@@ -202,8 +202,11 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       dirty = true;
       return response.writeHead(204).end();
     }
-    if (phrase !== undefined) {
-      if (typeof phrase !== 'string' || !Object.hasOwn(phrases, phrase)) {
+    if (phrase !== undefined || text !== undefined) {
+      if (text !== undefined && !player.admin && !player.freeChat) return response.writeHead(403).end();
+      if (text !== undefined && (typeof text !== 'string' || !text.trim() || text.length > 160 || /[\p{Cc}\p{Cf}]/u.test(text))) return response.writeHead(400).end();
+      if (text !== undefined && phrase !== undefined) return response.writeHead(400).end();
+      if (text === undefined && (typeof phrase !== 'string' || !Object.hasOwn(phrases, phrase))) {
         response.writeHead(400).end();
         return;
       }
@@ -213,7 +216,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
         return;
       }
       player.nextChat = now + 1800;
-      const message = { id: player.id, name: player.name, phrase };
+      const message = text === undefined ? { id: player.id, name: player.name, phrase } : { id: player.id, name: player.name, text: text.trim() };
       for (const other of players.values()) send(other.response, 'chat', message);
       response.writeHead(204).end();
       return;
@@ -257,12 +260,17 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
 
   function moderate(player, { action, targetId, name }, response) {
     if (!player.admin) return response.writeHead(403).end();
-    if (action !== 'rename' && action !== 'kick') return response.writeHead(400).end();
+    if (!['rename', 'kick', 'chat_allow', 'chat_block'].includes(action)) return response.writeHead(400).end();
     const targetEntry = [...players].find(([, target]) => target.id === targetId && target !== player);
     if (!targetEntry) return response.writeHead(404).end();
     const [targetToken, target] = targetEntry;
 
-    if (action === 'rename') {
+    if (action === 'chat_allow' || action === 'chat_block') {
+      if (target.admin) return response.writeHead(409).end();
+      target.freeChat = action === 'chat_allow';
+      send(target.response, 'permissions', { freeChat: target.freeChat });
+      dirty = true;
+    } else if (action === 'rename') {
       const nickname = typeof name === 'string' ? name.trim() : '';
       if (!nickname || nickname.length > 24 || /[\p{Cc}\p{Cf}]/u.test(nickname)) {
         return response.writeHead(400).end();
@@ -304,6 +312,8 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       return;
     }
     player.admin = true;
+    dirty = true;
+    send(player.response, 'permissions', { freeChat: true });
     response.writeHead(204).end();
   });
 

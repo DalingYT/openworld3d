@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import phrases from '../shared/phrases.json';
 import './chat.css';
 
-export function createChat(scene: THREE.Scene, send: (phrase: string) => Promise<boolean>) {
+export function createChat(scene: THREE.Scene, send: (message: { phrase: string } | { text: string }) => Promise<boolean>) {
   const panel = document.createElement('details');
   panel.id = 'game-chat';
   panel.hidden = true;
@@ -26,6 +26,21 @@ export function createChat(scene: THREE.Scene, send: (phrase: string) => Promise
   const reactionButtons = document.createElement('div');
   const reactionTitle = document.createElement('strong'); reactionTitle.textContent = 'Reacciones';
   panel.append(reactionTitle, reactionButtons);
+  let freeChat = false;
+  const composer = document.createElement('form'); composer.hidden = true;
+  const entry = document.createElement('input'); entry.type = 'text'; entry.maxLength = 160; entry.placeholder = 'Escribe un mensaje…'; entry.setAttribute('aria-label', 'Mensaje de chat libre');
+  const submit = document.createElement('button'); submit.type = 'submit'; submit.textContent = 'Enviar';
+  composer.append(entry, submit); panel.append(composer);
+  entry.addEventListener('focus', () => { if (document.pointerLockElement) document.exitPointerLock(); });
+  composer.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!freeChat || sending || !entry.value.trim()) return;
+    const text = entry.value.trim(); sending = true; submit.disabled = true;
+    notice.textContent = '';
+    if (await send({ text })) { if (entry.value.trim() === text) entry.value = ''; }
+    else notice.textContent = 'No se pudo enviar. Revisa tu permiso o espera un momento.';
+    sending = false; submit.disabled = false;
+  });
   let sending = false;
   for (const [phrase, text] of Object.entries(phrases)) {
     const button = document.createElement('button');
@@ -35,7 +50,7 @@ export function createChat(scene: THREE.Scene, send: (phrase: string) => Promise
       if (sending) return;
       sending = true;
       notice.textContent = '';
-      if (!await send(phrase)) notice.textContent = 'Espera un momento e inténtalo de nuevo.';
+      if (!await send({ phrase })) notice.textContent = 'Espera un momento e inténtalo de nuevo.';
       sending = false;
     });
     (phrase.startsWith('emoji') ? reactionButtons : buttons).append(button);
@@ -69,7 +84,13 @@ export function createChat(scene: THREE.Scene, send: (phrase: string) => Promise
   }
 
   return {
+    get typing() { return document.activeElement === entry; },
+    setFreeChat(value: boolean) {
+      freeChat = value; composer.hidden = !value;
+      if (!value) { entry.value = ''; entry.blur(); }
+    },
     setConnected(value: boolean) {
+      freeChat = false; composer.hidden = true; entry.value = ''; entry.blur();
       panel.hidden = !value;
       if (!value) {
         panel.open = false;
@@ -78,15 +99,16 @@ export function createChat(scene: THREE.Scene, send: (phrase: string) => Promise
         toggle.textContent = 'Chat';
       }
     },
-    receive(name: string, phrase: string, position?: THREE.Vector3) {
-      if (!Object.hasOwn(phrases, phrase)) return;
+    receive(name: string, phrase = '', position?: THREE.Vector3, text?: string) {
+      if (text === undefined && !Object.hasOwn(phrases, phrase)) return;
+      const content = text ?? phrases[phrase as keyof typeof phrases];
       const line = document.createElement('li');
       const speaker = document.createElement('strong');
       speaker.textContent = name + ' ';
-      line.append(speaker, phrases[phrase as keyof typeof phrases]);
+      line.append(speaker, content);
       messages.append(line);
       if (messages.childElementCount > 5) messages.firstElementChild?.remove();
-      toggle.textContent = panel.open ? 'Chat' : name + ' · ' + phrases[phrase as keyof typeof phrases];
+      toggle.textContent = panel.open ? 'Chat' : name + ' · ' + content;
       if (phrase === 'party' && position) celebrate(position);
       if (phrase.startsWith('emoji') && position) {
         sfx('reaction');

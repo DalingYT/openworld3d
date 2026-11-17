@@ -1,7 +1,7 @@
 import './settings.css';
 
-type Player = { id: string; name: string };
-type AdminRequest = { code: string } | { action: 'kick' | 'rename'; targetId: string; name?: string };
+type Player = { id: string; name: string; freeChat?: boolean };
+type AdminRequest = { code: string } | { action: 'kick' | 'rename' | 'chat_allow' | 'chat_block'; targetId: string; name?: string };
 
 export function createSettings(request: (data: AdminRequest) => Promise<number>) {
   const trigger = document.querySelector<HTMLButtonElement>('#game-settings')!;
@@ -64,12 +64,12 @@ export function createSettings(request: (data: AdminRequest) => Promise<number>)
     select.replaceChildren(new Option(players.length ? 'Selecciona un jugador' : 'No hay otros jugadores', ''));
     for (const player of players) {
       const duplicate = players.some(other => other !== player && other.name === player.name);
-      select.add(new Option(duplicate ? player.name + ' · ' + player.id.slice(0, 5) : player.name, player.id));
+      select.add(new Option((duplicate ? player.name + ' · ' + player.id.slice(0, 5) : player.name) + (player.freeChat ? ' (chat libre)' : ''), player.id));
     }
     select.value = players.some(player => player.id === selected) ? selected : '';
   }
 
-  async function moderate(action: 'kick' | 'rename', name = nickname.value.trim()) {
+  async function moderate(action: 'kick' | 'rename' | 'chat_allow' | 'chat_block', name = nickname.value.trim()) {
     if (busy || adminTrigger.hidden) return false;
     const target = players.find(player => player.id === select.value);
     if (!target) {
@@ -89,11 +89,11 @@ export function createSettings(request: (data: AdminRequest) => Promise<number>)
     busy = false;
     if (result === 204) {
       nickname.value = '';
-      resultStatus.textContent = action === 'kick' ? 'Jugador expulsado.' : 'Apodo cambiado.';
+      resultStatus.textContent = action === 'chat_allow' ? 'Chat libre habilitado durante esta sesión.' : action === 'chat_block' ? 'Chat libre bloqueado.' : action === 'kick' ? 'Jugador expulsado.' : 'Apodo cambiado.';
       return true;
     } else {
       resultStatus.textContent = result === 404 ? 'Ese jugador ya salió de la partida.'
-        : result === 400 ? 'El apodo no es válido.' : 'No se pudo aplicar la acción.';
+        : result === 409 ? 'Los administradores siempre tienen chat libre.' : result === 400 ? 'El apodo no es válido.' : 'No se pudo aplicar la acción.';
       return false;
     }
   }
@@ -103,6 +103,11 @@ export function createSettings(request: (data: AdminRequest) => Promise<number>)
     void moderate('rename');
   });
   kick.addEventListener('click', () => { void moderate('kick'); });
+  for (const [action, label] of [['chat_allow', 'Permitir chat libre'], ['chat_block', 'Bloquear chat libre']] as const) {
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = label;
+    button.addEventListener('click', () => { void moderate(action); });
+    kick.parentElement!.append(button);
+  }
   commands.addEventListener('submit', async event => {
     event.preventDefault();
     const text = command.value.trim();
