@@ -80,8 +80,8 @@ body > :not(#app):not(#touch-controls):not(script):not(style),
 }
 body > dialog[id] {
   box-sizing: border-box;
-  max-width: calc((100vw - 24px) / var(--ui-scale, 1));
-  max-height: calc((100dvh - 24px) / var(--ui-scale, 1));
+  max-width: calc((100vw - 24px) / var(--ui-scale, 1)) !important;
+  max-height: calc((100dvh - 24px) / var(--ui-scale, 1)) !important;
   overflow: auto;
 }
 #game-tools { flex-wrap: wrap; justify-content: flex-end; max-width: calc(65vw / var(--ui-scale, 1)); }
