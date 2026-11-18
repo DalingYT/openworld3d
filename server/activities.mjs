@@ -23,12 +23,9 @@ export function createActivities(players,cars,send,leaveCar,changed,economy,now=
     if(p.sleepUntil>now())return response.writeHead(409).end();
     if(typeof action!=='string')return response.writeHead(400).end();
     if(action.startsWith('football_')){const status=football.act(p,data);sync(p);return response.writeHead(status).end();}
-    if(action==='rest_visit'){
-      if(p.car||football.gameOf(p))return response.writeHead(409).end();
-      p.state={x:-8,y:5.5,z:-35,yaw:0};send(p.response,'teleport',p.state);changed();
-    }else if(action==='sleep'){
-      const h=homes.find(h=>h.id===p.house),at=(x,z)=>Math.hypot(p.state.x-x,p.state.z-z)<6;
-      if(p.car||football.gameOf(p)||(!at(-8,-35)&&!(h&&at(h.x,h.z))))return response.writeHead(409).end();
+    if(action==='sleep'){
+      const h=homes.find(h=>h.id===p.house);
+      if(p.car||football.gameOf(p)||!h||Math.abs(p.state.x-h.x)>=5.4||Math.abs(p.state.z-h.z)>=6.8)return response.writeHead(409).end();
       p.sleepUntil=now()+60000;p.emote=null;changed();
     }else if(action==='food'){
       if(!Object.hasOwn(catalog.food,id))return response.writeHead(400).end();
