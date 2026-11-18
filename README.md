@@ -4,6 +4,8 @@ Explora un mundo 3D con tus amigos desde el navegador. Elige tu apodo, ponte un 
 
 **[Jugar OpenWorld3D](https://dalingyt.github.io/openworld3d/)**
 
+[Ver novedades e historial de cambios](CHANGELOG.md)
+
 ## Cómo jugar
 
 - **En PC**, usa `WASD` para moverte, `Shift` para correr y `Espacio` para saltar. Pulsa `T` para cambiar de cámara y `C` para abrir el chat.
