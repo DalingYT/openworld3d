@@ -1,3 +1,4 @@
+import { createChangelog } from './changelog';
 import { createPhone } from './phone';
 import { outfit, poseEmote } from './customization';
 import { createVehicleRoster } from './vehicle-roster';
@@ -104,6 +105,7 @@ export function createLan(
   });
   const seatedSelf = makeAvatar(0x3366ff); seatedSelf.visible=false; scene.add(seatedSelf);
   let clockStart = performance.now();
+  const changelog = createChangelog();
   const settings = createSettings(async data => {
     if (!token) return 404;
     try {
@@ -331,7 +333,7 @@ export function createLan(
     get canRun(){return phone.canRun;},
     get sleeping(){return phone.sleeping;},
     get footballField(){return phone.field;},
-    get settingsOpen() { return phone.open || phone.sleeping || settings.open || shop.open || chat.typing || life.open; },
+    get settingsOpen() { return changelog.open || phone.open || phone.sleeping || settings.open || shop.open || chat.typing || life.open; },
     get carsAvailable() { return carsAvailable; },
     async ride(ride: string, vehicleType: 'car' | 'taxi' | 'boat' | 'boat4' = 'car') {
       if (!token || !carsAvailable) return false;

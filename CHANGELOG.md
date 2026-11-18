@@ -4,6 +4,10 @@ Novedades de OpenWorld3D para jugadores, de la más reciente a la más antigua.
 
 ## 2026-11-17
 
+### Novedades dentro del juego
+- Botón **Novedades** para consultar este historial sin salir de la partida.
+- El historial incluido en cada actualización se genera desde este mismo archivo.
+
 ### GuboPhone y fútbol
 - Nuevo diseño de teléfono con marco, reloj, pantalla de inicio e iconos de aplicaciones.
 - Botones para volver a Inicio y cerrar el teléfono.
