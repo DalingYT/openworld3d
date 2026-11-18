@@ -49,3 +49,5 @@ En **Teléfono → Fútbol** elige **1v1, 2v2, 3v3, 4v4 o 5v5**. Los equipos se 
 La ciudad tiene vecinos con consejos, bancos y farolas. Puedes encontrar animales y explorar bosque, dunas y tundra. Las casas son un 40% más anchas y profundas, con muebles sencillos; los carros giran un 35% más rápido.
 
 En **Configuración → Tamaño de controles → Escala de interfaz**, ajusta todos los menús y controles de **×0.25 a ×1.50**. En móviles comienza en ×0.75; el ajuste queda guardado en ese dispositivo. El joystick y el chat mantienen sus ajustes individuales.
+
+**GuboPhone** tiene una pantalla de inicio con iconos de aplicaciones. Usa **Inicio** para volver y **Cerrar teléfono** para seguir jugando. Durante la espera o el partido, **Salir del fútbol** aparece directamente en los controles del juego.

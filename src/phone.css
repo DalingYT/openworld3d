@@ -24,3 +24,28 @@
   color: #0b1827;
   font-size: 20px;
 }
+
+/* Phone shell and app launcher; scoped to preserve the game HUD. */
+#phone {
+  width: 350px; min-height: min(570px, 80dvh); padding: 16px;
+  border: 6px solid #101b2b; border-radius: 34px;
+  background: linear-gradient(150deg, #244c70, #17243e 60%, #33325d);
+  box-shadow: 0 18px 60px #0008;
+}
+#phone .phone-status { display:flex;justify-content:space-between;gap:12px;font-size:11px;opacity:.85;padding:0 5px 12px; }
+#phone header { display:flex;align-items:center;gap:10px; }
+#phone h2 { margin:10px 0;font-size:24px; }
+#phone .phone-wallet { padding:12px;border:1px solid #ffffff25;border-radius:14px;background:#ffffff0c;font-size:12px; }
+#phone nav { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px 7px;border:0;padding:20px 0; }
+#phone nav[hidden], #phone section[hidden], #phone button[hidden] { display:none; }
+#phone .phone-app { border:0;background:transparent;margin:0;padding:0;display:flex;flex-direction:column;align-items:center;gap:7px;font-size:12px; }
+#phone .phone-app-icon { display:grid;place-items:center;width:58px;height:58px;border-radius:17px;background:linear-gradient(135deg,#57b4c9,#346d99);font-size:29px;box-shadow:0 4px 8px #0003; }
+#phone .phone-app:nth-child(2n) .phone-app-icon { background:linear-gradient(135deg,#df9b63,#a35865); }
+#phone .phone-app:nth-child(3n) .phone-app-icon { background:linear-gradient(135deg,#a792e2,#6267bd); }
+#phone section { padding:4px 0 12px; }
+#phone section button { display:block;width:100%;box-sizing:border-box;margin:7px 0;text-align:left; }
+#phone .phone-notice:empty { display:none; }
+#phone .phone-dock { display:flex;justify-content:space-between;gap:8px;border-top:1px solid #ffffff25;padding-top:12px;margin-top:12px; }
+#phone .phone-dock button { font-size:12px; }
+#phone button:focus-visible { outline:3px solid #bcecff;outline-offset:2px; }
+#car-controls #football-leave { border-color:#e99b9b;background:#63353f;min-height:48px; }
