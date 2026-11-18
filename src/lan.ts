@@ -1,3 +1,5 @@
+import { createPhone } from './phone';
+import { outfit, poseEmote } from './customization';
 import { createVehicleRoster } from './vehicle-roster';
 import { createAnnouncements } from './announcements';
 import { createLife } from './life';
@@ -21,6 +23,7 @@ type PlayerState = {
   z: number;
   yaw: number;
   car?: string | null;
+  outfit?: string;
   hat?: string | null;
 };
 
@@ -94,6 +97,11 @@ export function createLan(
     try { return (await fetch(serverUrl + '/lan/move', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,social})})).status; } catch { return 0; }
   }, spawn);
   const shop = createHatShop(player, setColor);
+  const emotes = new Map<string,{id:string;until:number}>();
+  const phone=createPhone(scene,async activity=>{
+    if(!token)return 404;
+    try{return (await fetch(serverUrl+'/lan/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,activity})})).status;}catch{return 0;}
+  });
   const seatedSelf = makeAvatar(0x3366ff); seatedSelf.visible=false; scene.add(seatedSelf);
   let clockStart = performance.now();
   const settings = createSettings(async data => {
@@ -166,6 +174,7 @@ export function createLan(
       other.target.set(state.x, state.y, state.z);
       other.yaw = state.yaw;
       equipHat(other.avatar, state.hat);
+      outfit(other.avatar,state.outfit??'none');
       other.label.position.y = state.hat ? 3.02 : 2.45;
       other.avatar.visible = true;
     }
@@ -196,6 +205,7 @@ export function createLan(
       shop.setConnected(true);
       settings.setConnected(true, ready.moderation);
       playerId = ready.id;
+      phone.setConnected(ready.id);emotes.clear();
       vehicleRoster.setSelf(ready.id,name);
       flying = false;
       isAdmin = false; noclip = false; groundCar = false; waterproof = false;
@@ -236,6 +246,7 @@ export function createLan(
       carsAvailable = false;
       cars.setDriver('');
       cars.receive([]);
+      phone.setConnected('');emotes.clear();
       vehicleRoster.setCars([]);
       joined = false;
       settings.setConnected(false);
@@ -252,6 +263,9 @@ export function createLan(
       announcements.show('Sistema','Un administrador recargará la partida para todos en 3 segundos. Se reiniciará tu sesión.');
       window.setTimeout(()=>location.reload(),3000);
     });
+    connection.addEventListener('activities',event=>{if(token)phone.receiveProfile(JSON.parse(event.data));});
+    connection.addEventListener('football',event=>{if(token)phone.receiveFootball(JSON.parse(event.data));});
+    connection.addEventListener('emote',event=>{if(token){const data=JSON.parse(event.data);emotes.set(data.id,{id:data.emote,until:performance.now()+data.duration});}});
     connection.addEventListener('announcement', event => {
       if (token) { const data = JSON.parse(event.data); announcements.show(data.name, data.text); }
     });
@@ -284,6 +298,7 @@ export function createLan(
       carsAvailable = false;
       cars.setDriver('');
       cars.receive([]);
+      phone.setConnected('');emotes.clear();
       vehicleRoster.setCars([]);
       settings.setConnected(false);
       chat.setConnected(false);
@@ -313,7 +328,10 @@ export function createLan(
     get admin() { return isAdmin; },
     get flying() { return flying; },
     get entering() { return dialog.open; },
-    get settingsOpen() { return settings.open || shop.open || chat.typing || life.open; },
+    get canRun(){return phone.canRun;},
+    get sleeping(){return phone.sleeping;},
+    get footballField(){return phone.field;},
+    get settingsOpen() { return phone.open || phone.sleeping || settings.open || shop.open || chat.typing || life.open; },
     get carsAvailable() { return carsAvailable; },
     async ride(ride: string, vehicleType: 'car' | 'taxi' | 'boat' | 'boat4' = 'car') {
       if (!token || !carsAvailable) return false;
@@ -330,7 +348,10 @@ export function createLan(
     },
     worldTime(time: number) { return time - clockStart; },
     update(time: number, delta: number, thirdPerson = false) {
-      chat.update(delta);
+      chat.update(delta);phone.update(time,delta);
+      outfit(player,phone.outfit);outfit(seatedSelf,phone.outfit);
+      for(const [id,emote]of emotes)if(emote.until<time)emotes.delete(id);
+      if(!cars.riding)poseEmote(player,emotes.get(playerId)?.id??null,time);
       const mix = 1 - Math.exp(-delta * 16);
       seatedSelf.visible = thirdPerson && cars.seatAvatar(playerId,seatedSelf);
       if(seatedSelf.visible) {
@@ -345,6 +366,7 @@ export function createLan(
         avatar.position.lerp(target, mix);
         const difference = yaw - avatar.rotation.y;
         avatar.rotation.y += Math.atan2(Math.sin(difference), Math.cos(difference)) * mix;
+        poseEmote(avatar,emotes.get(id)?.id??null,time);
         label.visible = avatar.position.distanceToSquared(player.position) <= 55 ** 2;
       }
 

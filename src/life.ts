@@ -8,12 +8,13 @@ type Profile = {coins:number;house:string|null;flying:boolean;friends:string[];i
 type Person = {id:string;name:string};
 const accessible = new Set<string>();
 export function hitsHouse(x:number,z:number,radius:number,car=false,fromX=x,fromZ=z) {
+  radius/=1.4;
   return plots.some(h=>{
-    const dx=Math.abs(x-h.x),dz=z-h.z;
+    const dx=Math.abs(x-h.x)/1.4,dz=(z-h.z)/1.4;
     if(dx>4.2+radius||Math.abs(dz)>5.2+radius)return false;
     if(car)return true; // Cars cannot occupy any part of a house, including its interior.
     if(dx>3.8-radius||dz< -4.8+radius)return true;
-    const leaving = Math.abs(fromX-h.x)<3.8 && fromZ-h.z> -4.8 && fromZ-h.z<5.7 && z>=fromZ;
+    const leaving = Math.abs(fromX-h.x)/1.4<3.8 && (fromZ-h.z)/1.4> -4.8 && (fromZ-h.z)/1.4<5.7 && z>=fromZ;
     return dz>4.8-radius && (car||(!accessible.has(h.id)&&!leaving)||dx>1.2-radius);
   });
 }
@@ -23,11 +24,13 @@ export function createLife(scene:THREE.Scene,world:World,send:(data:Record<strin
   const structures=new Map<string,{label:THREE.Sprite;door:THREE.Mesh;group:THREE.Group;name:string}>();
   const box=new THREE.BoxGeometry(1,1,1),wall=new THREE.MeshLambertMaterial({color:0xe3c9a1}),roof=new THREE.MeshLambertMaterial({color:0x934f58}),wood=new THREE.MeshLambertMaterial({color:0x684b35});
   for(const h of plots){
-    const group=new THREE.Group();group.position.set(h.x,world.groundHeight(h.x,h.z),h.z);
+    const group=new THREE.Group();group.scale.set(1.4,1,1.4);group.position.set(h.x,world.groundHeight(h.x,h.z),h.z);
     const piece=(mat:THREE.Material,x:number,y:number,z:number,w:number,hh:number,d:number)=>{const m=new THREE.Mesh(box,mat);m.position.set(x,y,z);m.scale.set(w,hh,d);group.add(m);return m;};
     piece(wood,0,.05,0,8,.1,10);piece(wall,-4,1.6,0,.3,3.2,10);piece(wall,4,1.6,0,.3,3.2,10);piece(wall,0,1.6,-5,8,3.2,.3);
     piece(wall,-2.65,1.6,5,2.7,3.2,.3);piece(wall,2.65,1.6,5,2.7,3.2,.3);piece(wall,0,3,5,2.6,.4,.3);
     piece(roof,0,3.4,0,8.7,.35,10.7);
+    piece(wood,1,.5,2,2,.8,1);piece(wall,1,.95,2.4,2,.5,.2);
+    piece(wall,3,1,-3,.3,2,2);
     piece(roof,-2,.35,-2,2,.6,3);piece(wall,-2,.7,-3,2,.15,1);piece(wood,2,.7,-1,1.6,1.4,1.4);
     const door=piece(wood,0,1.4,5,2.6,2.8,.2),label=makeNameTag('Casa disponible');label.position.set(0,4.4,3);group.add(label);scene.add(group);structures.set(h.id,{label,door,group,name:''});
   }

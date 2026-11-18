@@ -1,0 +1,91 @@
+{
+  "food": {
+    "apple": {
+      "name": "Manzana",
+      "price": 5,
+      "hunger": 25
+    },
+    "pizza": {
+      "name": "Pizza",
+      "price": 12,
+      "hunger": 55
+    }
+  },
+  "outfits": {
+    "none": {
+      "name": "Sin ropa",
+      "price": 0
+    },
+    "shirt": {
+      "name": "Camiseta",
+      "price": 15
+    },
+    "stripes": {
+      "name": "Rayas",
+      "price": 20
+    },
+    "suit": {
+      "name": "Traje",
+      "price": 25
+    },
+    "pajamas": {
+      "name": "Pijama",
+      "price": 15
+    }
+  },
+  "stickers": {
+    "none": {
+      "name": "Sin sticker",
+      "price": 0
+    },
+    "star": {
+      "name": "Estrella",
+      "price": 10
+    },
+    "bolt": {
+      "name": "Rayo",
+      "price": 10
+    },
+    "flame": {
+      "name": "Fuego",
+      "price": 10
+    }
+  },
+  "emotes": {
+    "wave": "Saludar",
+    "dance": "Bailar",
+    "celebrate": "Celebrar"
+  },
+  "fields": [
+    {
+      "id": 1,
+      "x": 150,
+      "z": -85,
+      "height": 5.5
+    },
+    {
+      "id": 2,
+      "x": 235,
+      "z": -85,
+      "height": 5.5
+    },
+    {
+      "id": 3,
+      "x": 320,
+      "z": -85,
+      "height": 5.5
+    },
+    {
+      "id": 4,
+      "x": 405,
+      "z": -85,
+      "height": 5.5
+    },
+    {
+      "id": 5,
+      "x": 490,
+      "z": -85,
+      "height": 5.5
+    }
+  ]
+}

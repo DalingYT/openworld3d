@@ -1,3 +1,4 @@
+import { createAmbience } from './ambience';
 import { setupUpdateNotice } from './update-notice';
 setupUpdateNotice();
 import { createJumpInput } from './jump-input';
@@ -102,6 +103,7 @@ function makeAvatar(color = 0x3366ff) {
   return avatar;
 }
 
+const ambience = createAmbience(scene,world,makeAvatar);
 const player = makeAvatar();
 scene.add(player);
 function spawn(x: number, z: number) {
@@ -368,7 +370,7 @@ function animate(time: number) {
   const { position } = player;
   if (!driving && direction.lengthSq() > 0) {
     direction.clampLength(0, 1);
-    const running = touch.running || gamepad.input.running || keys.has('ShiftLeft') || keys.has('ShiftRight');
+    const running = lan.canRun && (touch.running || gamepad.input.running || keys.has('ShiftLeft') || keys.has('ShiftRight'));
     const distance = (lan.flying ? 10 : MOVE_SPEED) * (running ? RUN_MULTIPLIER : 1) * waterSpeed(position.y, 0.46) * delta;
     step.copy(direction).multiplyScalar(distance);
     if (!blockedAt(position.x + step.x, position.z, 0.45)) position.x += step.x;
@@ -382,9 +384,11 @@ function animate(time: number) {
   }
   if (!thirdPerson && !driving) player.rotation.y = yaw;
 
+  const match=lan.footballField;
+  if(match && !driving){position.x=THREE.MathUtils.clamp(position.x,match.x-14,match.x+14);position.z=THREE.MathUtils.clamp(position.z,match.z-23.5,match.z+23.5);}
   world.update(position.x, position.z);
   const floor = world.groundHeight(position.x, position.z);
-  if (!driving && !lan.flying && jumpQueued && (grounded || jumpsUsed < 2)) {
+  if (!driving && lan.canRun && !lan.sleeping && !lan.flying && jumpQueued && (grounded || jumpsUsed < 2)) {
     position.y = Math.max(position.y, floor);
     jumpsUsed = grounded ? 1 : 2;
     verticalVelocity = JUMP_FORCE;
@@ -441,6 +445,7 @@ function animate(time: number) {
   }
 
   lan.update(time, delta, thirdPerson);
+  ambience.update(lan.worldTime(time),player.position,!lan.entering&&!lan.settingsOpen&&!cars.riding);
   if (!lan.entering) {
     const nextZone = zoneName(position.x, position.z, floor);
     if (nextZone !== candidateZone) { candidateZone = nextZone; zoneSince = time; }

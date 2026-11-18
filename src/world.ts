@@ -1,3 +1,4 @@
+import activities from '../shared/activities.json';
 import housePlots from '../shared/houses.json';
 import { textured } from './textures';
 import * as THREE from 'three';
@@ -28,8 +29,10 @@ function baseTerrainHeight(x: number, z: number) {
 
 function terrainHeight(x:number,z:number) {
   const height=baseTerrainHeight(x,z);
+  for(const field of activities.fields){const edge=Math.max(Math.abs(x-field.x)-19,Math.abs(z-field.z)-29);if(edge<8)return lerp(field.height,height,smoothstep(edge,0,8));}
+  if(Math.abs(x+8)<8 && Math.abs(z+35)<6)return 5.5;
   for(const plot of housePlots){
-    const edge=Math.max(Math.abs(x-plot.x)-6,Math.abs(z-plot.z)-7);
+    const edge=Math.max(Math.abs(x-plot.x)-8,Math.abs(z-plot.z)-9);
     if(edge<4)return lerp(Math.max(2,baseTerrainHeight(plot.x,plot.z)),height,smoothstep(edge,0,4));
   }
   return height;
@@ -58,6 +61,7 @@ export function setTerrainLight(brightness: number) {
 
 const sand = new THREE.Color(0xe8c98d);
 const grass = new THREE.Color(0x73944d);
+const desert = new THREE.Color(0xc8a56a), forest = new THREE.Color(0x476f45), tundra = new THREE.Color(0xcddce2), biomeColor = new THREE.Color();
 const rock = new THREE.Color(0x817e72);
 const snow = new THREE.Color(0xe5edef);
 
@@ -115,8 +119,10 @@ function makeChunk(cx: number, cz: number) {
       const slope = Math.hypot(dx, dz);
       const light = (0.44 * dx + 0.82 + 0.36 * dz) / Math.hypot(slope, 1);
 
+      const wx=originX+x*CELL_SIZE,wz=originZ+z*CELL_SIZE;
+      biomeColor.copy(grass).lerp(desert,smoothstep(wx,650,850)).lerp(forest,smoothstep(-wx,300,500)).lerp(tundra,smoothstep(-wz,550,750));
       color.copy(sand)
-        .lerp(grass, smoothstep(height, WATER_LEVEL + 0.6, WATER_LEVEL + 4))
+        .lerp(biomeColor, smoothstep(height, WATER_LEVEL + 0.6, WATER_LEVEL + 4))
         .lerp(rock, smoothstep(height, 22, 43) * smoothstep(slope, 0.42, 1.25))
         .lerp(snow, smoothstep(height, 51, 68) * (1 - 0.5 * smoothstep(slope, 0.7, 1.5)))
         .multiplyScalar(0.65 + 0.42 * Math.max(0, light));
@@ -165,7 +171,8 @@ function makeScenery(cx: number, cz: number, height: (x: number, z: number) => n
     const tree = random() > 0.3;
     const c = CITY_LIMITS;
     if (x > c.minX - 14 && x < c.maxX + 14 && z > c.minZ - 14 && z < c.maxZ + 14) continue;
-    if (housePlots.some(h => Math.abs(x-h.x)<10 && Math.abs(z-h.z)<11)) continue;
+    if (activities.fields.some(f=>Math.abs(x-f.x)<23&&Math.abs(z-f.z)<32))continue;
+    if (housePlots.some(h => Math.abs(x-h.x)<12 && Math.abs(z-h.z)<13)) continue;
     if (y < 3 || y > 48 || Math.abs(height(x + 2, z) - y) > 1.5 || Math.abs(height(x, z + 2) - y) > 1.5) continue;
     dummy.rotation.set(0, turn, 0);
     dummy.scale.setScalar(size);
@@ -194,6 +201,9 @@ export function zoneName(x: number, z: number, height: number) {
   if (height < -0.5) return 'Mar abierto';
   if (height < 3) return z < 0 ? 'Playa Norte' : 'Playa Sur';
   if (height > 38) return 'Cumbres';
+  if(x>750)return 'Dunas del Este';
+  if(x< -400)return 'Bosque del Oeste';
+  if(z< -650)return 'Tundra del Norte';
   return x < 0 ? 'Colinas del Oeste' : 'Praderas del Este';
 }
 

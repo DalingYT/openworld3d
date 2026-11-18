@@ -1,3 +1,4 @@
+import { createActivities } from './activities.mjs';
 import { filterChat } from './chat-filter.mjs';
 import { createChatModeration } from './chat-moderation.mjs';
 import { createSessionFeatures } from './session-features.mjs';
@@ -32,13 +33,15 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
   }
 
   const features = createSessionFeatures(players, send);
+  const activities = createActivities(players,cars,send,leaveCar,()=>{dirty=true;carsDirty=true;},()=>features.broadcast());
   const timer = setInterval(() => {
     features.tick();
+    activities.tick();
     chatModeration.prune();
     const ping = Date.now() - lastPing >= 10_000;
     if (dirty) {
       const snapshot = [...players.values()].filter(player => player.state).map(
-        ({ id, name, color, state, car, hat, admin, freeChat }) => ({ id, name, color, ...state, car, hat, freeChat: Boolean(admin || freeChat) })
+        ({ id, name, color, state, car, hat, outfit, admin, freeChat }) => ({ id, name, color, ...state, car, hat, outfit, freeChat: Boolean(admin || freeChat) })
       );
       for (const player of players.values()) {
         send(player.response, 'players', snapshot.filter(other => other.id !== player.id));
@@ -70,6 +73,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       cars.delete(player.ownedCar);
       carsDirty = true;
     }
+    activities.remove(player);
     features.remove(player);
     players.delete(token);
     features.broadcast();
@@ -114,7 +118,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       const id = randomUUID();
       cars.set(id, {
         id, owner: player.id, name: player.name, color: vehicleType === 'taxi' ? 0xffcb32 : player.color, driver: null,
-        kind: vehicleType, passengers: ['taxi','boat4'].includes(vehicleType) ? [null,null,null] : [],
+        kind: vehicleType, spoiler:player.spoiler??false,sticker:player.sticker??'none', passengers: ['taxi','boat4'].includes(vehicleType) ? [null,null,null] : [],
         x: carX, z: carZ, yaw, vx: 0, vz: 0, impact: 0
       });
       player.ownedCar = id;
@@ -160,6 +164,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     const color = freeColors[randomInt(freeColors.length)];
     players.set(token, { id, clientId, name, color, response, slot, state: null, car: null, hat: null });
     features.start(players.get(token));
+    activities.start(players.get(token));
     response.on('close', () => disconnect(token, slot));
 
     response.writeHead(200, {
@@ -170,6 +175,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     send(response, 'ready', { id, token, color, sessionFeatures: true, freeChat: false, moderation: true, spawnCars: true, worldTime: Date.now() - startTime,
       x: [0, 3, -3, 6][slot % 4], z: -35 - Math.floor(slot / 4) * 3 });
     send(response, 'cars', [...cars.values()]);
+    activities.sync(players.get(token));activities.football.broadcast();
     features.broadcast();
     dirty = true;
   }
@@ -218,7 +224,9 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
     };
   }
 
-  const move = withPlayer((player, { x, y, z, yaw, phrase, text, ride, drivingCar, carImpact, hat, color, pitch, roll, social, vehicleType, boatSpawn, speedMode, targetId }, response) => {
+  const move = withPlayer((player, { x, y, z, yaw, phrase, text, ride, drivingCar, carImpact, hat, color, pitch, roll, social, vehicleType, boatSpawn, speedMode, targetId, activity }, response) => {
+    if (activity !== undefined)return activities.action(player,activity,response);
+    if(ride && !['exit','eject'].includes(ride) && (player.sleepUntil>Date.now()||player.needs.energy<15||activities.football.gameOf(player)))return response.writeHead(409).end();
     if (social !== undefined) return features.action(player, social, response);
     if (ride === 'spawn') {
       if (color !== undefined && !colors.includes(color)) return response.writeHead(400).end();
@@ -276,6 +284,7 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       response.writeHead(204).end();
       return;
     }
+    if(player.sleepUntil>Date.now())return response.writeHead(204).end();
     if ([pitch, roll].some(value => value !== undefined && !Number.isFinite(value))) return response.writeHead(400).end();
     if (![x, y, z, yaw].every(Number.isFinite)) {
       response.writeHead(400).end();
@@ -311,6 +320,8 @@ export function createRoom({ adminCode = process.env.ADMIN_CODE } = {}) {
       car.roll = Math.atan2(Math.sin(roll ?? 0), Math.cos(roll ?? 0));
       carsDirty = true;
     }
+    const match=activities.football.gameOf(player);
+    if(match){x=Math.max(match.x-14,Math.min(match.x+14,x));z=Math.max(match.z-23.5,Math.min(match.z+23.5,z));}
     const previous = player.state;
     if (!previous || x !== previous.x || y !== previous.y || z !== previous.z || yaw !== previous.yaw) {
       player.state = { x, y, z, yaw };

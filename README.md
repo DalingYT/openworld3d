@@ -37,3 +37,13 @@ El **Barco · 4 plazas** admite conductor y tres pasajeros. Pulsa **T** o el bot
 En primera persona puedes ver el capó, el tablero y el volante. Abre **Ocupantes** para ver quién viaja contigo; el conductor puede bajar pasajeros. Los apodos también pasan por el filtro al entrar o renombrarse.
 
 Los ocupantes se ven sentados en sus asientos, con sus colores y sombreros, tanto en carros y taxis como en barcos. En primera persona se oculta solo tu propio personaje para no tapar la vista.
+
+## GuboPhone y vida en la ciudad
+
+Abre **Teléfono** para comprar comida, ropa, alerones y stickers, o usar los emotes **Saludar**, **Bailar** y **Celebrar**. Estas compras también están en la tienda. Las compras y las tres barras (hambre, energía y diversión) duran esta sesión.
+
+Con menos de **15% de energía** debes descansar: puedes caminar, pero no correr, saltar ni subir a vehículos. Usa **Ir al descanso público** y **Dormir 1 minuto**, o descansa en tu propia casa. Dormir tarda 60 segundos y recupera la energía. Comer recupera hambre; jugar y usar emotes aumenta la diversión.
+
+En **Teléfono → Fútbol** elige **1v1, 2v2, 3v3, 4v4 o 5v5**. Los equipos se forman automáticamente y empieza al llenarse. Acércate al balón y pulsa **F** o **Patear**. Dura 3 minutos o hasta 5 goles: el equipo ganador recibe 20 GC y el resto 5 GC.
+
+La ciudad tiene vecinos con consejos, bancos y farolas. Puedes encontrar animales y explorar bosque, dunas y tundra. Las casas son un 40% más anchas y profundas, con muebles sencillos; los carros giran un 35% más rápido.

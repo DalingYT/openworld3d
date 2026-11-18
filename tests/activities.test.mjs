@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {createActivities} from '../server/activities.mjs';
+let time=0;const p={id:'a',coins:100,state:{x:-8,y:5.5,z:-35,yaw:0}},players=new Map([['a',p]]),cars=new Map(),events=[];
+const a=createActivities(players,cars,(_r,e,d)=>events.push({e,d}),p=>p.car=null,()=>{},()=>{},()=>time);a.start(p);
+const act=data=>{let status;a.action(p,data,{writeHead(s){status=s;return this},end(){}});return status;};
+p.needs.hunger=20;assert.equal(act({action:'food',id:'apple'}),204);assert.equal(p.coins,95);assert.equal(p.needs.hunger,45);
+assert.equal(act({action:'outfit',id:'suit'}),204);assert.equal(p.coins,70);assert.equal(act({action:'outfit',id:'suit'}),204);assert.equal(p.coins,70);
+assert.equal(act({action:'outfit',id:'forged'}),400);assert.equal(act({action:'spoiler',enabled:true}),204);assert.equal(p.coins,60);assert.equal(act({action:'sticker',id:'bolt'}),204);assert.equal(p.coins,50);
+p.needs.energy=10;assert.equal(act({action:'sleep'}),204);assert.equal(p.sleepUntil,60000);time=59999;a.tick(time);assert.equal(p.needs.energy,10);assert.equal(act({action:'food',id:'pizza'}),409);time=60000;a.tick(time);assert.equal(p.needs.energy,100);assert.equal(p.sleepUntil,0);
+p.state.x=1000;assert.equal(act({action:'sleep'}),409);assert.equal(act({action:'rest_visit'}),204);assert.equal(p.state.x,-8);
+p.coins=0;assert.equal(act({action:'food',id:'pizza'}),402);p.needs.energy=14;p.car='car';time+=2000;a.tick(time);assert.equal(p.car,null);
+console.log('PASS: authoritative purchases, owned cosmetics reuse, 60-second sleep, bed proximity, low-energy vehicle exit');

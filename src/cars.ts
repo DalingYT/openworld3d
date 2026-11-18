@@ -1,3 +1,4 @@
+import { customizeCar } from './customization';
 import { hitsHouse } from './life';
 import { sfx } from './audio';
 import * as THREE from 'three';
@@ -6,12 +7,14 @@ import { World, waterSpeed } from './world';
 import { makeNameTag, disposeNameTag } from './name-tag';
 
 export type CarState = {
+  spoiler?: boolean; sticker?: string;
   kind?: 'car' | 'taxi' | 'boat' | 'boat4'; passengers?: (string | null)[];
   id: string; owner: string; name: string; color: number;
   x: number; y?: number; z: number; yaw: number; driver: string | null;
   impact: number; vx: number; vz: number; pitch?: number; roll?: number;
 };
 
+const CAR_TURN_MULTIPLIER = 1.35;
 const RECOVERY_GRAVITY = 18;
 const RECOVERY_SPEED = 9;
 
@@ -242,6 +245,7 @@ export function createCars(scene: THREE.Scene, world: World) {
           bumpX = state.vx - forwardX * speed;
           bumpZ = state.vz - forwardZ * speed;
         }
+        customizeCar(car.mesh,state.spoiler,state.sticker,['boat','boat4'].includes(state.kind??''));
         car.state = state;
         car.targetLift = (state.kind === 'boat' || state.kind === 'boat4') || state.y === undefined ? 0
           : THREE.MathUtils.clamp(state.y - world.groundHeight(state.x, state.z), 0, 80);
@@ -350,7 +354,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       if(stickToGround){flying=false;verticalSpeed=null;groundVelocity=0;pitchRate=rollRate=0;}
       if (flying) {
         wasFlying = true; verticalSpeed = null; pitchRate = rollRate = 0;
-        const heading = rotation.y - steer * delta * 1.6;
+        const heading = rotation.y - steer * delta * 1.6 * CAR_TURN_MULTIPLIER;
         speed = THREE.MathUtils.lerp(speed, pedal * 18 * pace * power, 1 - Math.exp(-delta * 3));
         const nextX = position.x - Math.sin(heading) * speed * delta;
         const nextZ = position.z - Math.cos(heading) * speed * delta;
@@ -365,7 +369,7 @@ export function createCars(scene: THREE.Scene, world: World) {
       const oldVX = bumpX - Math.sin(oldYaw) * speed;
       const oldVZ = bumpZ - Math.cos(oldYaw) * speed;
       steeringAngle = THREE.MathUtils.lerp(steeringAngle, steer * 0.48, 1 - Math.exp(-delta * 7));
-      const turning = THREE.MathUtils.clamp(speed * Math.tan(steeringAngle) / 2.4, -1.7, 1.7);
+      const turning = THREE.MathUtils.clamp(speed * Math.tan(steeringAngle) / 2.4, -1.7, 1.7) * CAR_TURN_MULTIPLIER;
       const yaw = oldYaw - (verticalSpeed === null ? turning : 0) * delta;
       const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
       const rx = Math.cos(yaw), rz = -Math.sin(yaw);

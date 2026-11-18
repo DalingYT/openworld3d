@@ -100,11 +100,22 @@ export function addCity(scene: THREE.Scene) {
   const shopInk = shopSign.getContext('2d')!;
   shopInk.fillStyle = '#b62943'; shopInk.fillRect(0, 0, 512, 128);
   shopInk.fillStyle = '#fff3c9'; shopInk.textAlign = 'center'; shopInk.font = 'bold 46px system-ui'; shopInk.fillText('GUBO TIENDINI', 256, 62);
-  shopInk.font = '24px system-ui'; shopInk.fillText('Sombreros y colores', 256, 102);
+  shopInk.font = '24px system-ui'; shopInk.fillText('Ropa, comida y accesorios', 256, 102);
   const shopMap = new THREE.CanvasTexture(shopSign); shopMap.colorSpace = THREE.SRGBColorSpace;
   const shopBoard = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.75), new THREE.MeshBasicMaterial({map: shopMap}));
   shopBoard.position.set(-24, y + 4.8, -53.8); scene.add(shopBoard);
 
+  // Shared instances keep street furniture inexpensive on integrated GPUs.
+  for(const x of [-7,7,-43,43])for(const z of [-62,-92,-123,-148]){
+    add(0x333b45,x,y+2.2,z,.12,4.4,.12);add(0xffe3a0,x,y+4.45,z,.7,.16,.7);
+    add(curb,x,y+.08,z,1.3,.16,1.3);
+  }
+  for(const z of streets)for(const x of [-36,0,36])for(let i=-3;i<=3;i++)add(0xe8e6d9,x+i*.8,y+.07,z+5.8,.45,.025,2.4);
+  for(const x of [-46,46])for(const z of [-65,-102,-140]){
+    add(0x724d35,x,y+.65,z,3,.2,.65);add(0x724d35,x,y+1,z+.35,3,.7,.12);
+    for(const offset of [-1,1])add(0x3b4548,x+offset,y+.3,z,.15,.6,.5);
+    add(0x4f7a42,x,y+.4,z-3,1.3,.8,1.3);
+  }
   const matrix = new THREE.Matrix4();
   for (const [color, pieces] of batches) {
     const material = new THREE.MeshLambertMaterial({ color });
