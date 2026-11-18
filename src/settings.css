@@ -72,3 +72,19 @@ body #game-chat {
 #controller-panel button { min-height: 44px; padding: 8px 12px; margin: 4px; background: #294260; color: white; border: 1px solid #7e9ab1; border-radius: 8px; font: inherit; }
 
 #controller-panel button[aria-pressed="true"] { border-color: #81e6cc; background: #355b62; }
+
+/* Scale each HUD root once; never scale the WebGL canvas or pointer surface. */
+body > :not(#app):not(#touch-controls):not(script):not(style),
+#joystick, #touch-actions {
+  zoom: var(--ui-scale, 1);
+}
+body > dialog[id] {
+  box-sizing: border-box;
+  max-width: calc((100vw - 24px) / var(--ui-scale, 1));
+  max-height: calc((100dvh - 24px) / var(--ui-scale, 1));
+  overflow: auto;
+}
+#game-tools { flex-wrap: wrap; justify-content: flex-end; max-width: calc(65vw / var(--ui-scale, 1)); }
+#car-controls { flex-wrap: wrap; justify-content: center; max-width: calc((100vw - 24px) / var(--ui-scale, 1)); }
+#settings-panel input[type="range"] { width: 100%; }
+

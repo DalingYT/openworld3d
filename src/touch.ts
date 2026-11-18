@@ -21,7 +21,8 @@ export function setupTouch(
     const dy = y / scale;
     touch.x = Math.abs(dx) < 0.08 ? 0 : dx;
     touch.y = Math.abs(dy) < 0.08 ? 0 : -dy;
-    knob.style.translate = dx * radius + 'px ' + dy * radius + 'px';
+    const localRadius = joystick.clientWidth * 0.34;
+    knob.style.translate = dx * localRadius + 'px ' + dy * localRadius + 'px';
   }
 
   function resetStick() {

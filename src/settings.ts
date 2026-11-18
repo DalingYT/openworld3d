@@ -11,21 +11,23 @@ export function createSettings(sendRequest: (data: AdminRequest) => Promise<numb
   const admin = dialog.querySelector<HTMLDetailsElement>('#settings-admin')!;
   const sizes = document.createElement('fieldset');
   const sizesTitle = document.createElement('legend'); sizesTitle.textContent = 'Tamaño de controles'; sizes.append(sizesTitle);
-  const defaults = { joystick: 140, chat: 100 };
+  const defaults = { ui: matchMedia('(any-pointer: coarse)').matches ? 75 : 100, joystick: 140, chat: 100 };
   let saved: Record<string, unknown> = {};
   try { const value = JSON.parse(localStorage.getItem('openworld3d.ui') ?? '{}'); if (value && typeof value === 'object') saved = value; } catch {}
   const sliders: HTMLInputElement[] = [];
   function persist() {
     try { localStorage.setItem('openworld3d.ui', JSON.stringify(Object.fromEntries(sliders.map(slider => [slider.name, Number(slider.value)])))); } catch {}
   }
-  for (const [key, min, max, title] of [['joystick', 90, 190, 'Joystick'], ['chat', 85, 150, 'Chat']] as const) {
+  for (const [key, min, max, title] of [['ui', 25, 150, 'Escala de interfaz'], ['joystick', 90, 190, 'Joystick'], ['chat', 85, 150, 'Chat']] as const) {
     const label = document.createElement('label'), caption = document.createElement('span'), slider = document.createElement('input');
     slider.type = 'range'; slider.name = key; slider.min = String(min); slider.max = String(max); slider.step = '5';
     const value = saved[key];
     slider.value = String(typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : defaults[key]);
     const apply = () => {
       const value = Number(slider.value);
-      caption.textContent = `${title}: ${value}${key === 'joystick' ? ' px' : '%'}`;
+      caption.textContent = key === 'ui' ? `${title}: ×${(value / 100).toFixed(2)}` : `${title}: ${value}${key === 'joystick' ? ' px' : '%'}`;
+      slider.setAttribute('aria-label', title);
+      if (key === 'ui') { document.documentElement.style.setProperty('--ui-scale', String(value / 100)); return; }
       document.documentElement.style.setProperty(key === 'joystick' ? '--joystick-size' : '--chat-scale', key === 'joystick' ? value + 'px' : String(value / 100));
     };
     slider.addEventListener('input', () => { apply(); persist(); });
@@ -35,7 +37,7 @@ export function createSettings(sendRequest: (data: AdminRequest) => Promise<numb
   resetSizes.addEventListener('click', () => {
     for (const slider of sliders) { slider.value = String(defaults[slider.name as keyof typeof defaults]); slider.dispatchEvent(new Event('input')); }
   });
-  const sizeHint = document.createElement('p'); sizeHint.textContent = 'Se ajustan al espacio disponible en tu pantalla.';
+  const sizeHint = document.createElement('p'); sizeHint.textContent = 'Escala general de ×0.25 a ×1.50. Se guarda en este dispositivo. Joystick y chat también tienen su propio ajuste.';
   sizes.append(sizeHint, resetSizes); admin.before(sizes);
   const form = dialog.querySelector<HTMLFormElement>('#admin-form')!;
   const input = form.querySelector<HTMLInputElement>('input')!;

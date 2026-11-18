@@ -47,3 +47,5 @@ Con menos de **15% de energía** debes descansar: puedes caminar, pero no correr
 En **Teléfono → Fútbol** elige **1v1, 2v2, 3v3, 4v4 o 5v5**. Los equipos se forman automáticamente y empieza al llenarse. Acércate al balón y pulsa **F** o **Patear**. Dura 3 minutos o hasta 5 goles: el equipo ganador recibe 20 GC y el resto 5 GC.
 
 La ciudad tiene vecinos con consejos, bancos y farolas. Puedes encontrar animales y explorar bosque, dunas y tundra. Las casas son un 40% más anchas y profundas, con muebles sencillos; los carros giran un 35% más rápido.
+
+En **Configuración → Tamaño de controles → Escala de interfaz**, ajusta todos los menús y controles de **×0.25 a ×1.50**. En móviles comienza en ×0.75; el ajuste queda guardado en ese dispositivo. El joystick y el chat mantienen sus ajustes individuales.
